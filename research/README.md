@@ -1,7 +1,7 @@
 # Research data
 
 Onchain measurements behind the numbers in `docs/`. The raw pulls were made on
-25 Sep 2026, before hacking started, and are disclosed as prior research; the
+25 Sep 2026, before hacking started, and are disclosed as prior research (except `uniswapx.csv` and `pool_recovery.csv`, pulled during the hackathon); the
 chart scripts in this folder were written during the hackathon.
 
 | File | What | Source |
@@ -11,3 +11,4 @@ chart scripts in this folder were written during the hackathon.
 | `defisaver_aavev3_mev.csv` | Same-pool swaps right before and after each rebalance | Neighbouring transactions in the same block |
 | `morpho_preliq_eth.csv`, `morpho_preliq_base.csv` | Every Morpho pre-liquidation, realized incentive factor | `PreLiquidate` events, pre-liquidation oracle at the previous block |
 | `ripcord.csv` | Every Index Coop `RipcordCalled` on Ethereum and Arbitrum | Extension events, caller, reward |
+| `uniswapx.csv` | 345 UniswapX Dutch-auction fills of WETH against USDC, USDT or DAI from block 25,990,000, with the swapper's cost and the filler's margin against the Aave oracle price of the previous block | `Fill` events of the two mainnet reactors, receipts |

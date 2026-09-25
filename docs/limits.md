@@ -1,6 +1,7 @@
 # What this does not answer yet
 
-- **The minimum discount a filler accepts.** Our 0.1 to 0.2% comes from the cost of the same trade (impact plus gas), not from observed filler behaviour. Morpho's flat bonuses cannot tell us: they only show fillers arriving at 1.7%. The one rising curve we found on Morpho Base (6 fills) paid 1.17%. Dutch-auction fills on 1inch Fusion or UniswapX would be the next dataset.
+- **The minimum discount a filler accepts, in Trim's own auction.** We measured the closest market: 345 UniswapX Dutch-auction fills of WETH against stablecoins over nine days (\$20.8M, 29 fillers). Fills landed at a median 0.09% *better* than the Chainlink price of the block before, with the middle half between −0.26% and +0.10%. The filler's margin is smaller than the oracle's own resolution (Chainlink updates on about a 0.5% move). We expect Trim fillers to behave the same, but have not observed it.
+- **Production parameters.** The demo uses a 5% maximum discount at 30% deviation so that changes are visible on screen, which pays 0.5–2% for small drifts. Given the UniswapX margins, a real deployment should reach about 0.2% at a small deviation and cap the discount far lower.
 - **Chunked fills at scale.** The \$10M case assumes pieces spread two blocks apart with the pool recovering as measured. A filler that hedges on a centralised exchange would do better; we have not measured that.
 - **The boost direction.** When the price rises, a lagging oracle would sell cheap. Both vaults only rebalance toward safety in this build.
 - **Discovery.** Fillers need an index of Trim positions. The demo has one position; aggregator routing to Aqua makers like these is 1inch's decision, not ours.
