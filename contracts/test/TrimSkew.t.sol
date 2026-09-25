@@ -26,12 +26,15 @@ contract TrimSkewTest is Test {
     MockTaker taker;
     address maker = makeAddr("maker");
     ISwapVM.Order order;
+    address tokenA;
+    address tokenB;
 
     function setUp() public {
         aqua = new Aqua();
         router = new TrimSwapVMRouter(address(aqua), address(0), address(this), "Trim", "1");
         usdc = new TokenMock("USD Coin", "USDC");
         weth = new TokenMock("Wrapped Ether", "WETH");
+        (tokenA, tokenB) = address(usdc) < address(weth) ? (address(usdc), address(weth)) : (address(weth), address(usdc));
         source = new MockTrimSource();
         source.set(0.2e18, 1, 2000, 0);
         taker = new MockTaker(aqua, router, address(this));
@@ -52,7 +55,7 @@ contract TrimSkewTest is Test {
         router.quote(order, 1_000e18, _takerData(true));
     }
 
-    function test_ExactInPaysDiscountOfCurrentDeviation() public view {
+    function test_ExactInPaysDiscountOfCurrentDeviation() public {
         (uint256 amountIn, uint256 amountOut,) = router.quote(order, 1_000e18, _takerData(true));
 
         uint256 discountBps = uint256(MAX_DISCOUNT_BPS) * 0.2e18 / FULL_DEVIATION;
@@ -77,7 +80,7 @@ contract TrimSkewTest is Test {
         assertLt(largeOut * 1e18 / largeIn, smallOut * 1e18 / smallIn);
     }
 
-    function test_ExactOutChargesDiscountedAmountIn() public view {
+    function test_ExactOutChargesDiscountedAmountIn() public {
         (uint256 amountIn, uint256 amountOut,) = router.quote(order, 1e18, _takerData(false));
 
         uint256 discountBps = uint256(MAX_DISCOUNT_BPS) * 0.2e18 / FULL_DEVIATION;
@@ -100,8 +103,8 @@ contract TrimSkewTest is Test {
     function _makerArgs(bytes memory program) internal view returns (MakerTraitsLib.Args memory) {
         return MakerTraitsLib.Args({
             maker: maker,
-            tokenA: address(usdc),
-            tokenB: address(weth),
+            tokenA: tokenA,
+            tokenB: tokenB,
             shouldUnwrapWeth: false,
             useAquaInsteadOfSignature: true,
             usePermit2: false,
@@ -133,7 +136,7 @@ contract TrimSkewTest is Test {
             isStrictThresholdAmount: false,
             isFirstTransferFromTaker: true,
             useTransferFromAndAquaPush: false,
-            isAToB: true,
+            isAToB: address(usdc) == tokenA,
             allowPartialFill: false,
             usePermit2: false,
             threshold: "",
