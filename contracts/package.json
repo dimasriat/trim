@@ -1,0 +1,8 @@
+{
+  "name": "@trim/contracts",
+  "private": true,
+  "scripts": {
+    "build": "forge build --threads 1",
+    "test": "forge test --threads 1"
+  }
+}
