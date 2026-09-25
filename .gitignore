@@ -1,0 +1,11 @@
+node_modules/
+out/
+cache/
+broadcast/
+.env
+.env.*
+!.env.example
+__pycache__/
+dist/
+.vitepress/cache/
+.vitepress/dist/

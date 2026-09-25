@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+subject=$(grep -v '^#' "$1" | head -n1)
+max=${TRIM_MAX_SUBJECT:-72}
+
+if [ -z "$subject" ]; then
+  echo "commit-msg: empty subject." >&2
+  exit 1
+fi
+if [ "${#subject}" -gt "$max" ]; then
+  echo "commit-msg: subject is ${#subject} characters, limit $max." >&2
+  exit 1
+fi

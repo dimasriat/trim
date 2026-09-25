@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+max_lines=${TRIM_MAX_LINES:-400}
+max_files=${TRIM_MAX_FILES:-20}
+
+if [ "${ALLOW_LARGE_COMMIT:-0}" = "1" ]; then
+  echo "pre-commit: size check skipped (ALLOW_LARGE_COMMIT=1)" >&2
+  exit 0
+fi
+
+skip='(^|/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|bun\.lockb?|foundry\.lock)$|\.(csv|svg|png|jpg|webp)$'
+
+lines=0
+files=0
+while IFS=$'\t' read -r added removed path; do
+  [ -z "$path" ] && continue
+  if [[ "$path" =~ $skip ]] || [ "$added" = "-" ]; then
+    continue
+  fi
+  files=$((files + 1))
+  lines=$((lines + added + removed))
+done < <(git diff --cached --numstat --no-renames)
+
+if [ "$lines" -gt "$max_lines" ] || [ "$files" -gt "$max_files" ]; then
+  echo "pre-commit: commit too large ($lines changed lines, $files files; limit $max_lines lines, $max_files files)." >&2
+  echo "Split it into smaller commits. Lockfiles, CSV and images are not counted." >&2
+  echo "For vendored code only: ALLOW_LARGE_COMMIT=1 git commit ..." >&2
+  exit 1
+fi
