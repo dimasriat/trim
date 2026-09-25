@@ -65,12 +65,12 @@ function Market({ state, busy, movePrice, resetPrice }: {
   );
 }
 
-function OfferRow({ size, quote }: { size: bigint; quote: Quote }) {
+function OfferRow({ size, quote, pastTarget }: { size: bigint; quote: Quote; pastTarget: boolean }) {
   if (!quote) {
     return (
       <tr>
         <td>{formatToken(size, 6, 0)} USDC</td>
-        <td colSpan={2} className="muted">no offer</td>
+        <td colSpan={2} className="muted">{pastTarget ? "past target" : "no offer"}</td>
       </tr>
     );
   }
@@ -92,7 +92,9 @@ function Offers({ state }: { state: TrimState }) {
           <tr><th>Pay</th><th>Get</th><th>Below oracle</th></tr>
         </thead>
         <tbody>
-          {FILL_SIZES.map((size, i) => <OfferRow key={String(size)} size={size} quote={state.quotes[i]} />)}
+          {FILL_SIZES.map((size, i) => (
+            <OfferRow key={String(size)} size={size} quote={state.quotes[i]} pastTarget={state.quotes.some((q) => q !== null)} />
+          ))}
         </tbody>
       </table>
       <p className="muted">Bigger fills move the position further back to target, so their average discount is smaller.</p>
