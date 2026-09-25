@@ -8,6 +8,10 @@ if [ -z "$subject" ]; then
   echo "commit-msg: empty subject." >&2
   exit 1
 fi
+if ! [[ "$subject" =~ ^(feat|fix|test|chore|docs|refactor|perf|build|ci|style)(\([a-z0-9-]+\))?!?:\ .+ ]]; then
+  echo "commit-msg: subject needs a conventional prefix, e.g. 'feat(contracts): ...' or 'chore: ...'." >&2
+  exit 1
+fi
 if [ "${#subject}" -gt "$max" ]; then
   echo "commit-msg: subject is ${#subject} characters, limit $max." >&2
   exit 1

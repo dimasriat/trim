@@ -21,5 +21,6 @@ git config core.hooksPath .githooks
 ```
 
 The hooks keep commits small (400 changed lines, 20 files; lockfiles, CSV and
-images excluded) and subjects under 72 characters, so the history shows the
+images excluded) subjects under 72 characters with a conventional prefix
+(`feat:`, `fix:`, `test:`, `chore:`, `docs:`, `refactor:`), so the history shows the
 work as it happened.
