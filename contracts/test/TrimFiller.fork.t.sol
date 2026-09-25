@@ -32,7 +32,7 @@ contract TrimFillerForkTest is Test {
         aqua = new Aqua();
         router = new TrimSwapVMRouter(address(aqua), WETH, address(this), "Trim", "1");
         vault = new TrimAaveVault(POOL, ORACLE, aqua, address(router), WETH, USDC, 1.5e18, owner);
-        filler = new TrimFiller(aqua, router, bot);
+        filler = new TrimFiller(aqua, ISwapVM(address(router)), bot);
         uint256 price = ORACLE.getAssetPrice(WETH);
 
         deal(WETH, owner, 10e18);
