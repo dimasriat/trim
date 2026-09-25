@@ -5,12 +5,12 @@ import { Test } from "forge-std/Test.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Aqua } from "@1inch/aqua/src/Aqua.sol";
 import { ISwapVM } from "@1inch/swap-vm/contracts/interfaces/ISwapVM.sol";
-import { MakerTraitsLib } from "@1inch/swap-vm/contracts/libs/MakerTraits.sol";
 import { TakerTraitsLib } from "@1inch/swap-vm/contracts/libs/TakerTraits.sol";
 import { MockTaker } from "@1inch/swap-vm/test/solidity/mocks/MockTaker.sol";
 
 import { TrimSkew } from "../src/instructions/TrimSkew.sol";
 import { TrimSwapVMRouter } from "../src/TrimSwapVMRouter.sol";
+import { TrimOrders } from "../src/TrimOrders.sol";
 import { TrimBalancedVault } from "../src/TrimBalancedVault.sol";
 import { IAaveOracle } from "../src/interfaces/aave/IAaveOracle.sol";
 
@@ -41,7 +41,7 @@ contract TrimBalancedVaultForkTest is Test {
         uint256 usdcForHalf = 10e18 * wethPrice / ORACLE.getAssetPrice(USDC) / 1e12;
         deal(WETH, address(vault), 10e18);
         deal(USDC, address(vault), usdcForHalf);
-        order = MakerTraitsLib.build(_makerArgs());
+        order = TrimOrders.build(address(vault), WETH, USDC, false, MAX_DISCOUNT_BPS, FULL_DEVIATION);
         vm.prank(owner);
         vault.ship(order);
     }
@@ -97,33 +97,6 @@ contract TrimBalancedVaultForkTest is Test {
             abi.encodeCall(IAaveOracle.getAssetPrice, (WETH)),
             abi.encode(wethPrice * percentOfOpen / 100)
         );
-    }
-
-    function _makerArgs() internal view returns (MakerTraitsLib.Args memory) {
-        (address tokenA, address tokenB) = USDC < WETH ? (USDC, WETH) : (WETH, USDC);
-        return MakerTraitsLib.Args({
-            maker: address(vault),
-            tokenA: tokenA,
-            tokenB: tokenB,
-            shouldUnwrapWeth: false,
-            useAquaInsteadOfSignature: true,
-            usePermit2: false,
-            allowZeroAmountIn: false,
-            receiver: address(0),
-            hasPreTransferInHook: false,
-            hasPostTransferInHook: false,
-            hasPreTransferOutHook: false,
-            hasPostTransferOutHook: false,
-            preTransferInTarget: address(0),
-            preTransferInData: "",
-            postTransferInTarget: address(0),
-            postTransferInData: "",
-            preTransferOutTarget: address(0),
-            preTransferOutData: "",
-            postTransferOutTarget: address(0),
-            postTransferOutData: "",
-            program: TrimSkew.build(address(vault), MAX_DISCOUNT_BPS, FULL_DEVIATION)
-        });
     }
 
     function _takerData(address tokenIn, address tokenOut) internal view returns (bytes memory) {
