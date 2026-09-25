@@ -124,6 +124,19 @@ contract TrimAaveVaultForkTest is Test {
         taker.swap(order, amountIn, _takerData(false));
     }
 
+    function test_GasOfOneFill() public {
+        _dropWethPrice(80);
+        deal(USDC, address(taker), 2_000e6);
+        bytes memory takerData = _takerData(true);
+
+        uint256 gasBefore = gasleft();
+        taker.swap(order, 2_000e6, takerData);
+        uint256 used = gasBefore - gasleft();
+
+        emit log_named_uint("gas of one fill", used);
+        assertLt(used, 700_000);
+    }
+
     function _fill(uint256 amountIn, bool firstTransferFromTaker) internal returns (uint256, uint256) {
         deal(USDC, address(taker), amountIn);
         return taker.swap(order, amountIn, _takerData(firstTransferFromTaker));
