@@ -93,7 +93,7 @@ function Offers({ state }: { state: TrimState }) {
         </thead>
         <tbody>
           {FILL_SIZES.map((size, i) => (
-            <OfferRow key={String(size)} size={size} quote={state.quotes[i]} pastTarget={state.quotes.some((q) => q !== null)} />
+            <OfferRow key={String(size)} size={size} quote={state.quotes[i]} pastTarget={state.healthFactor < state.target} />
           ))}
         </tbody>
       </table>
