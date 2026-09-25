@@ -47,7 +47,7 @@ contract TrimBalancedVaultForkTest is Test {
     }
 
     function test_BalancedVaultHasNoOffer() public {
-        assertLt(vault.deviation(), 0.001e18);
+        assertEq(vault.deviation(), 0);
 
         vm.expectRevert(TrimSkew.TrimSkewOnTarget.selector);
         router.quote(order, 1_000e6, _takerData(USDC, WETH));
