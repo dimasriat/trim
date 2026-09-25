@@ -7,5 +7,5 @@ broadcast/
 !.env.example
 __pycache__/
 dist/
-.vitepress/cache/
-.vitepress/dist/
+docs/.vitepress/cache/
+docs/.vitepress/dist/

@@ -3,6 +3,7 @@ import { join } from "node:path";
 const port = Number(process.env.PORT ?? 3950);
 const anvil = process.env.ANVIL_RPC ?? "http://127.0.0.1:8545";
 const dist = join(import.meta.dir, "dist");
+const docs = join(import.meta.dir, "..", "docs", ".vitepress", "dist");
 const deployments = join(import.meta.dir, "..", "contracts", "deployments", "anvil.json");
 const credentials = process.env.DEMO_USER && process.env.DEMO_PASS
   ? "Basic " + btoa(`${process.env.DEMO_USER}:${process.env.DEMO_PASS}`)
@@ -23,6 +24,14 @@ Bun.serve({
       return fetch(anvil, { method: "POST", headers: { "content-type": "application/json" }, body: await request.text() });
     }
     if (pathname === "/deployments.json") return new Response(Bun.file(deployments));
+    if (pathname === "/docs" || pathname.startsWith("/docs/")) {
+      const path = pathname.replace(/^\/docs\/?/, "") || "index.html";
+      for (const candidate of [path, `${path}.html`, join(path, "index.html")]) {
+        const page = Bun.file(join(docs, candidate));
+        if (await page.exists()) return new Response(page);
+      }
+      return new Response("not found", { status: 404 });
+    }
 
     const file = Bun.file(join(dist, pathname === "/" ? "index.html" : pathname));
     return (await file.exists()) ? new Response(file) : new Response(Bun.file(join(dist, "index.html")));
