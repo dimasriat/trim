@@ -38,8 +38,14 @@ A discount read only at the current deviation would let the first filler take th
 For an exact-in fill of $a$ tokens in, with $F$ the fair amount out at the oracle:
 
 $$
-d_0 = d(\delta), \qquad
-y_0 = \frac{F}{1 - d_0}, \qquad
+d_0 = d(\delta)
+$$
+
+$$
+y_0 = \frac{F}{1 - d_0}
+$$
+
+$$
 d_1 = d\big(\delta_{\text{after}}(a, y_0)\big)
 $$
 
@@ -50,8 +56,14 @@ $$
 For an exact-out fill of $y$ tokens out, with $F$ the fair amount in:
 
 $$
-a_0 = \Big\lceil F\,(1 - d_0) \Big\rceil, \qquad
-d_1 = d\big(\delta_{\text{after}}(a_0, y)\big), \qquad
+a_0 = \Big\lceil F\,(1 - d_0) \Big\rceil
+$$
+
+$$
+d_1 = d\big(\delta_{\text{after}}(a_0, y)\big)
+$$
+
+$$
 a = \Big\lceil F\,\big(1 - \tfrac{1}{2}(d_0 + d_1)\big) \Big\rceil
 $$
 
