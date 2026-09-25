@@ -28,6 +28,7 @@ Each decision is dated in the author's notes; the planning trail is in
 
 ## Written by the author
 
-- The `TrimSkew` curve: Claude wrote the first version and its tests; the author
-  learned it through a question-and-answer session and rewrote it; the tests are
-  unchanged. See the commit history of `contracts/src/instructions/TrimSkew.sol`.
+Planned, not done yet: the `TrimSkew` curve. Claude wrote the first version and
+its tests; the author learns it through a question-and-answer session, then
+rewrites it with the tests unchanged. This section is updated when that commit
+lands.
