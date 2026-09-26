@@ -59,6 +59,8 @@ export type DemoConfig = { explorerUrl: string | null; epoch: number; resetEvery
 
 export type AutoBot = { on: boolean; costBps: number };
 
+export type TargetQuote = { amountIn: bigint; amountOut: bigint; fairOut: bigint } | null;
+
 async function loadDemoConfig(): Promise<DemoConfig> {
   const response = await fetch("/demo.json");
   return response.json();
@@ -217,6 +219,8 @@ export function useTrim() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [autoBot, setAutoBot] = useState<AutoBot>({ on: false, costBps: 15 });
+  const [targetQuote, setTargetQuote] = useState<TargetQuote>(null);
+  const targetQuoteBlock = useRef<bigint | null>(null);
   const fillCache = useRef(new Map<string, Fill>());
   const autoBotRef = useRef(autoBot);
   autoBotRef.current = autoBot;
@@ -255,6 +259,17 @@ export function useTrim() {
       signer: accounts.filler.address,
     }));
     setActivity([...priceMoves, ...ownerShips, ...fillActivity].sort((a, b) => (a.block > b.block ? -1 : a.block < b.block ? 1 : 0)));
+    const block = await publicClient.getBlockNumber();
+    if (targetQuoteBlock.current !== block) {
+      targetQuoteBlock.current = block;
+      let quote: TargetQuote = null;
+      if (next.healthFactor < next.target && next.fillerUsdc >= FILL_STEP) {
+        const size = await largestPassing(FILL_STEP, next.fillerUsdc, FILL_STEP, async (s) => (await simulateFill(deployments, order, s)) !== null);
+        const filled = size === null ? null : await simulateFill(deployments, order, size);
+        if (size !== null && filled) quote = { amountIn: size, ...filled };
+      }
+      setTargetQuote(quote);
+    }
     setFills(allFills);
     setSession(currentSession);
     setDemo(config);
@@ -272,10 +287,12 @@ export function useTrim() {
   }, [refresh]);
 
   const run = useCallback(async (label: string, action: () => Promise<void>) => {
+    targetQuoteBlock.current = null;
     setBusy(label);
     setError(null);
     try {
       await action();
+      targetQuoteBlock.current = null;
       await refresh();
     } catch (e) {
       setError(errorText(e));
@@ -345,12 +362,12 @@ export function useTrim() {
     if (session) setEthPrice(session.openPrice);
   }, [session, setEthPrice]);
 
-  const slowCrash = useCallback((totalPercent: number, steps: number) => run("crash", async () => {
+  const slowCrash = useCallback((totalPercent: number, steps: number, withBot = false) => run("crash", async () => {
     if (!state) return;
     const start = Number(state.ethPrice);
     for (let i = 1; i <= steps; i++) {
       await writePrice(BigInt(Math.round(start * (1 - (totalPercent / 100) * (i / steps)))));
-      if (autoBotRef.current.on) await botStep();
+      if (withBot || autoBotRef.current.on) await botStep();
       await refresh();
     }
   }), [state, run, writePrice, botStep, refresh]);
@@ -396,6 +413,7 @@ export function useTrim() {
   return {
     deployments,
     state,
+    targetQuote,
     session,
     fills,
     activity,
