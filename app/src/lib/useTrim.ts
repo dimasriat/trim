@@ -61,7 +61,9 @@ export type DemoConfig = { explorerUrl: string | null; epoch: number; resetEvery
 
 export type AutoBot = { on: boolean; costBps: number };
 
-export type CrashProgress = { step: number; steps: number; price: number; fills: number };
+export type BotDecision = { price: number; size: number; discountUsdc: number; costUsdc: number; action: "fill" | "wait" | "none" };
+
+export type CrashProgress = { step: number; steps: number; price: number; fills: number; decision: BotDecision | null };
 
 export type TargetQuote = { amountIn: bigint; amountOut: bigint; fairOut: bigint } | null;
 
@@ -227,6 +229,7 @@ export function useTrim() {
   const [autoBot, setAutoBot] = useState<AutoBot>({ on: false, costBps: 15 });
   const [targetQuote, setTargetQuote] = useState<TargetQuote>(null);
   const [crash, setCrash] = useState<CrashProgress | null>(null);
+  const [botLog, setBotLog] = useState<(BotDecision & { step: number })[]>([]);
   const stopCrash = useRef(false);
   const targetQuoteBlock = useRef<bigint | null>(null);
   const fillCache = useRef(new Map<string, Fill>());
@@ -333,29 +336,34 @@ export function useTrim() {
     await publicClient.waitForTransactionReceipt({ hash });
   }, [deployments]);
 
-  const botStep = useCallback(async () => {
-    if (!deployments) return;
+  const botStep = useCallback(async (): Promise<BotDecision> => {
+    if (!deployments) return { price: 0, size: 0, discountUsdc: 0, costUsdc: 0, action: "none" };
     const { costBps } = autoBotRef.current;
     const order = await currentOrder();
-    const balance = await publicClient.readContract({ address: deployments.usdc, abi: abis.erc20, functionName: "balanceOf", args: [deployments.filler] });
-    if (balance < FILL_STEP) return;
-    const worthIt = async (size: bigint) => {
-      const filled = await simulateFill(deployments, order, size);
-      return filled !== null && Number(filled.amountOut - filled.fairOut) / Number(filled.amountOut) >= costBps / 10_000;
-    };
-    const size = await largestPassing(FILL_STEP, balance, FILL_STEP, worthIt);
-    if (size === null) return;
-    const filled = await simulateFill(deployments, order, size);
-    if (!filled) return;
-    const [gasPrice, ethPrice, usdcPrice] = await Promise.all([
+    const [balance, gasPrice, ethPrice, usdcPrice] = await Promise.all([
+      publicClient.readContract({ address: deployments.usdc, abi: abis.erc20, functionName: "balanceOf", args: [deployments.filler] }),
       publicClient.getGasPrice(),
       publicClient.readContract({ address: deployments.oracle, abi: abis.oracle, functionName: "getAssetPrice", args: [deployments.weth] }),
       publicClient.readContract({ address: deployments.oracle, abi: abis.oracle, functionName: "getAssetPrice", args: [deployments.usdc] }),
     ]);
+    const price = Number(ethPrice) / 1e8;
+    if (balance < FILL_STEP) return { price, size: 0, discountUsdc: 0, costUsdc: 0, action: "none" };
+    const worthIt = async (size: bigint) => {
+      const filled = await simulateFill(deployments, order, size);
+      return filled !== null && Number(filled.amountOut - filled.fairOut) / Number(filled.amountOut) >= costBps / 10_000;
+    };
+    const fillable = async (size: bigint) => (await simulateFill(deployments, order, size)) !== null;
+    const size = (await largestPassing(FILL_STEP, balance, FILL_STEP, worthIt)) ?? (await largestPassing(FILL_STEP, balance, FILL_STEP, fillable));
+    if (size === null) return { price, size: 0, discountUsdc: 0, costUsdc: 0, action: "none" };
+    const filled = await simulateFill(deployments, order, size);
+    if (!filled) return { price, size: 0, discountUsdc: 0, costUsdc: 0, action: "none" };
+    const sizeUsdc = Number(size) / 1e6;
     const gasUsdc = (Number(FILL_GAS * gasPrice) / 1e18) * (Number(ethPrice) / Number(usdcPrice));
-    const discountUsdc = (Number(size) / 1e6) * (Number(filled.amountOut) / Number(filled.fairOut) - 1);
-    if (discountUsdc < gasUsdc + (Number(size) / 1e6) * (costBps / 10_000)) return;
+    const discountUsdc = sizeUsdc * (Number(filled.amountOut) / Number(filled.fairOut) - 1);
+    const costUsdc = gasUsdc + sizeUsdc * (costBps / 10_000);
+    if (discountUsdc < costUsdc) return { price, size: sizeUsdc, discountUsdc, costUsdc, action: "wait" };
     await writeFill(order, size, filled.amountOut);
+    return { price, size: sizeUsdc, discountUsdc, costUsdc, action: "fill" };
   }, [deployments, currentOrder, writeFill]);
 
   const setEthPrice = useCallback((price: bigint) => run("price", async () => {
@@ -377,14 +385,16 @@ export function useTrim() {
     const start = Number(state.ethPrice);
     const fillsBefore = fillCache.current.size;
     stopCrash.current = false;
-    setCrash({ step: 0, steps, price: start / 1e8, fills: 0 });
+    setBotLog([]);
+    setCrash({ step: 0, steps, price: start / 1e8, fills: 0, decision: null });
     try {
       for (let i = 1; i <= steps && !stopCrash.current; i++) {
         const price = Math.round(start * (1 - (totalPercent / 100) * (i / steps)));
         await writePrice(BigInt(price));
-        if (withBot || autoBotRef.current.on) await botStep();
+        const decision = withBot || autoBotRef.current.on ? await botStep() : null;
+        if (decision) setBotLog((log) => [...log, { ...decision, step: i }]);
         await refresh();
-        setCrash({ step: i, steps, price: price / 1e8, fills: fillCache.current.size - fillsBefore });
+        setCrash({ step: i, steps, price: price / 1e8, fills: fillCache.current.size - fillsBefore, decision });
       }
     } finally {
       setCrash(null);
@@ -412,7 +422,9 @@ export function useTrim() {
     if (filled) await writeFill(order, size, filled.amountOut);
   }), [deployments, state, run, currentOrder, writeFill]);
 
-  const runBotNow = useCallback(() => run("bot", botStep), [run, botStep]);
+  const runBotNow = useCallback(() => run("bot", async () => {
+    await botStep();
+  }), [run, botStep]);
 
   const shipCurve = useCallback((maxDiscountBps: number, fullDeviation: bigint) => run("ship", async () => {
     if (!deployments || !state) return;
@@ -431,6 +443,7 @@ export function useTrim() {
     const response = await fetch("/reset", { method: "POST" });
     if (!response.ok) throw new Error(await response.text());
     fillCache.current.clear();
+    setBotLog([]);
   }), [run]);
 
   return {
@@ -438,6 +451,7 @@ export function useTrim() {
     state,
     targetQuote,
     crash,
+    botLog,
     stopSlowCrash,
     session,
     fills,
