@@ -60,6 +60,8 @@ export function Playground() {
           showDetails={toggleDetails}
           activity={activity}
           botLog={trim.botLog}
+          autoBot={trim.autoBot}
+          setAutoBot={trim.setAutoBot}
           crash={trim.crash}
           stopCrash={trim.stopSlowCrash}
           openPrice={session ? Number(session.openPrice) / 1e8 : Number(state.ethPrice) / 1e8}

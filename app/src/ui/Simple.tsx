@@ -1,6 +1,6 @@
 import type { CrashProgress, Fill, TargetQuote, TrimState } from "../lib/useTrim";
 import { useState } from "react";
-import type { Activity, ActivityKind, BotDecision } from "../lib/useTrim";
+import type { Activity, ActivityKind, AutoBot, BotDecision, BotLogEntry } from "../lib/useTrim";
 import { ownerTotals } from "../lib/bot";
 import { curveDiscount, formatHealthFactor, formatToken, healthStatus, keeperLeak, loanToValue, ltvAtHealthFactor, type CurveParams } from "../lib/trim";
 import { hf, percent, TxLink, usdc, wethInUsdc } from "./format";
@@ -44,7 +44,10 @@ function PositionCard({ state, curve }: { state: TrimState; curve: CurveParams }
   );
 }
 
-function OfferCard({ state, curve, targetQuote, busy, movePrice, resetPrice, fillToTarget, crashWithBot, crash, stopCrash, openPrice }: {
+function OfferCard({ state, curve, targetQuote, busy, movePrice, resetPrice, fillToTarget, crashWithBot, crash, stopCrash, openPrice, autoBot, setAutoBot, lastDecision }: {
+  autoBot: AutoBot;
+  setAutoBot: (bot: AutoBot) => void;
+  lastDecision: BotLogEntry | null;
   crash: CrashProgress | null;
   stopCrash: () => void;
   openPrice: number;
@@ -75,6 +78,11 @@ function OfferCard({ state, curve, targetQuote, busy, movePrice, resetPrice, fil
         <button disabled={busy !== null} onClick={() => movePrice(5)}>ETH +5%</button>
         <button disabled={busy !== null} onClick={resetPrice}>Start price</button>
       </div>
+      <label className="watch">
+        <input type="checkbox" checked={autoBot.on} onChange={(e) => setAutoBot({ ...autoBot, on: e.target.checked })} />
+        Bot watching: after every price move it fills only if that pays for its gas and selling ({autoBot.costBps} bps)
+      </label>
+      {!crash && autoBot.on && lastDecision && <DecisionLine decision={lastDecision} />}
       {onTarget(state, curve) || !targetQuote ? (
         <span className="chip muted-chip">{onTarget(state, curve) ? "No offer · position at target" : "Checking the offer…"}</span>
       ) : (
@@ -85,7 +93,7 @@ function OfferCard({ state, curve, targetQuote, busy, movePrice, resetPrice, fil
             <div><span>Bot gets</span><strong>{formatToken(targetQuote.amountOut, 18, 4)} WETH <small>{dollars(wethInUsdc(targetQuote.amountOut, state.ethPrice, state.usdcPrice))}</small></strong></div>
             <div><span>Average discount of this fill</span><strong>{percent(average)}</strong></div>
           </div>
-          <button className="primary wide" disabled={busy !== null} onClick={fillToTarget}>Fill to target, as a bot</button>
+          <button className="primary wide" disabled={busy !== null} onClick={fillToTarget}>Fill to target now, ignoring the bot's costs</button>
         </div>
       )}
       {crash ? (
@@ -148,21 +156,22 @@ function DecisionLine({ decision }: { decision: BotDecision }) {
   );
 }
 
-function BotLogCard({ log }: { log: (BotDecision & { step: number })[] }) {
+function BotLogCard({ log }: { log: BotLogEntry[] }) {
   return (
     <section className="card simple botlog">
-      <h2>What the bot decided at each step</h2>
+      <h2>What the bot decided</h2>
       {log.length === 0 ? (
-        <p className="muted small">Run "Slow crash" to see the bot weigh every step: it fills only when the discount it earns beats its gas and selling cost.</p>
+        <p className="muted small">With "Bot watching" on, every price move makes the bot weigh the offer: it fills only when the discount it earns beats its gas and selling cost.</p>
       ) : (
         <table className="tx-table">
           <thead>
-            <tr><th>Step</th><th>ETH</th><th>Best fill</th><th>Bot earns</th><th>Bot's cost</th><th>Decision</th></tr>
+            <tr><th>#</th><th>After</th><th>ETH</th><th>Best fill</th><th>Bot earns</th><th>Bot's cost</th><th>Decision</th></tr>
           </thead>
           <tbody>
             {[...log].reverse().map((d) => (
               <tr key={d.step}>
                 <td>{d.step}</td>
+                <td>{d.trigger}</td>
                 <td>{dollars(d.price)}</td>
                 <td>{d.size ? `${d.size.toLocaleString("en-US")} USDC` : "none"}</td>
                 <td>{d.size ? money2(d.discountUsdc) : "·"}</td>
@@ -228,9 +237,11 @@ function TransactionsCard({ activity, explorerUrl }: { activity: Activity[]; exp
   );
 }
 
-export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, movePrice, resetPrice, fillToTarget, crashWithBot, showDetails, activity, botLog, crash, stopCrash, openPrice }: {
+export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, movePrice, resetPrice, fillToTarget, crashWithBot, showDetails, activity, botLog, autoBot, setAutoBot, crash, stopCrash, openPrice }: {
   activity: Activity[];
-  botLog: (BotDecision & { step: number })[];
+  botLog: BotLogEntry[];
+  autoBot: AutoBot;
+  setAutoBot: (bot: AutoBot) => void;
   crash: CrashProgress | null;
   stopCrash: () => void;
   openPrice: number;
@@ -250,7 +261,7 @@ export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, mo
     <>
       <div className="board">
         <PositionCard state={state} curve={curve} />
-        <OfferCard state={state} curve={curve} targetQuote={targetQuote} busy={busy} movePrice={movePrice} resetPrice={resetPrice} fillToTarget={fillToTarget} crashWithBot={crashWithBot} crash={crash} stopCrash={stopCrash} openPrice={openPrice} />
+        <OfferCard state={state} curve={curve} targetQuote={targetQuote} busy={busy} movePrice={movePrice} resetPrice={resetPrice} fillToTarget={fillToTarget} crashWithBot={crashWithBot} crash={crash} stopCrash={stopCrash} openPrice={openPrice} autoBot={autoBot} setAutoBot={setAutoBot} lastDecision={botLog.at(-1) ?? null} />
         <CostCard fills={fills} explorerUrl={explorerUrl} />
       </div>
       <div className="board lists">
