@@ -86,7 +86,7 @@ export function Curve({ state, curve, draft, quote }: { state: TrimState; curve:
           </g>
         ))}
         <line x1={x(1)} y1={pad.top} x2={x(1)} y2={y(0)} className="liquidation" />
-        <text x={x(1) - 3} y={pad.top + 9} className="tick end bad">liquidation</text>
+        <text x={x(1) - 3} y={y(topDiscount / 4)} className="tick end bad">liquidation</text>
         {ticks.map((tick) => (
           <g key={tick}>
             <text x={x(tick)} y={y(0) + 13} className="tick">{tick.toFixed(2)}</text>
