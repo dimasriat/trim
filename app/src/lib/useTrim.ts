@@ -63,6 +63,8 @@ export type AutoBot = { on: boolean; costBps: number };
 
 export type BotDecision = { price: number; size: number; discountUsdc: number; costUsdc: number; action: "fill" | "wait" | "none" };
 
+export type BotLogEntry = BotDecision & { step: number; trigger: string };
+
 export type CrashProgress = { step: number; steps: number; price: number; fills: number; decision: BotDecision | null };
 
 export type TargetQuote = { amountIn: bigint; amountOut: bigint; fairOut: bigint } | null;
@@ -226,10 +228,13 @@ export function useTrim() {
   const [demo, setDemo] = useState<DemoConfig | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [autoBot, setAutoBot] = useState<AutoBot>({ on: false, costBps: 15 });
+  const [autoBot, setAutoBot] = useState<AutoBot>({ on: true, costBps: 15 });
   const [targetQuote, setTargetQuote] = useState<TargetQuote>(null);
   const [crash, setCrash] = useState<CrashProgress | null>(null);
-  const [botLog, setBotLog] = useState<(BotDecision & { step: number })[]>([]);
+  const [botLog, setBotLog] = useState<BotLogEntry[]>([]);
+  const logDecision = useCallback((decision: BotDecision, trigger: string) => {
+    setBotLog((log) => [...log, { ...decision, trigger, step: log.length + 1 }]);
+  }, []);
   const stopCrash = useRef(false);
   const targetQuoteBlock = useRef<bigint | null>(null);
   const fillCache = useRef(new Map<string, Fill>());
@@ -368,8 +373,8 @@ export function useTrim() {
 
   const setEthPrice = useCallback((price: bigint) => run("price", async () => {
     await writePrice(price);
-    if (autoBotRef.current.on) await botStep();
-  }), [run, writePrice, botStep]);
+    if (autoBotRef.current.on) logDecision(await botStep(), "price move");
+  }), [run, writePrice, botStep, logDecision]);
 
   const movePrice = useCallback((percent: number) => {
     if (!state) return;
@@ -385,21 +390,20 @@ export function useTrim() {
     const start = Number(state.ethPrice);
     const fillsBefore = fillCache.current.size;
     stopCrash.current = false;
-    setBotLog([]);
     setCrash({ step: 0, steps, price: start / 1e8, fills: 0, decision: null });
     try {
       for (let i = 1; i <= steps && !stopCrash.current; i++) {
         const price = Math.round(start * (1 - (totalPercent / 100) * (i / steps)));
         await writePrice(BigInt(price));
         const decision = withBot || autoBotRef.current.on ? await botStep() : null;
-        if (decision) setBotLog((log) => [...log, { ...decision, step: i }]);
+        if (decision) logDecision(decision, `crash ${i}/${steps}`);
         await refresh();
         setCrash({ step: i, steps, price: price / 1e8, fills: fillCache.current.size - fillsBefore, decision });
       }
     } finally {
       setCrash(null);
     }
-  }), [state, deployments, run, writePrice, botStep, refresh]);
+  }), [state, deployments, run, writePrice, botStep, refresh, logDecision]);
 
   const stopSlowCrash = useCallback(() => {
     stopCrash.current = true;
@@ -423,8 +427,8 @@ export function useTrim() {
   }), [deployments, state, run, currentOrder, writeFill]);
 
   const runBotNow = useCallback(() => run("bot", async () => {
-    await botStep();
-  }), [run, botStep]);
+    logDecision(await botStep(), "run once");
+  }), [run, botStep, logDecision]);
 
   const shipCurve = useCallback((maxDiscountBps: number, fullDeviation: bigint) => run("ship", async () => {
     if (!deployments || !state) return;
