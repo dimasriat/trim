@@ -115,3 +115,43 @@ button.active { border-color: var(--good); box-shadow: inset 0 0 0 1px var(--goo
   .board { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
   .card .questions-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
 }
+
+.role-title { margin: 2px 2px -4px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.small { font-size: 12px; }
+p.small { margin: 8px 0 0; line-height: 1.45; }
+button.small { min-height: 32px; padding: 4px 10px; font-size: 13px; flex: 0 0 auto; }
+button.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+.pnl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pnl div { display: grid; gap: 2px; font-size: 12px; }
+.pnl strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+.good { color: var(--good); }
+.bad { color: var(--bad); }
+.slider { display: grid; gap: 4px; font-size: 13px; margin-top: 8px; }
+.slider input { width: 100%; accent-color: var(--accent); }
+input.number { flex: 1 1 90px; min-width: 0; min-height: 40px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 14px; }
+input.number.tiny { flex: 0 0 64px; width: 64px; min-height: 30px; margin: 0 4px; }
+.autobot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; font-size: 13px; padding: 8px 10px; border-radius: 8px; background: var(--bg); }
+.autobot label { display: inline-flex; align-items: center; gap: 4px; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.busy { margin: 0; font-size: 13px; color: var(--accent); }
+.card h2 .hash { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 6px; }
+.curve .grid { stroke: var(--line); stroke-width: 1; }
+.curve .liquidation { stroke: var(--bad); stroke-width: 1; stroke-dasharray: 3 3; }
+.curve .tick.start { text-anchor: start; }
+.curve .tick.bad { fill: var(--bad); }
+.curve .line.preview { stroke: var(--accent); stroke-dasharray: 5 4; }
+.demobar a { font-size: 14px; }
+@media (min-width: 1100px) {
+  .board.lower { grid-template-columns: minmax(0, 1fr) minmax(0, 2.1fr); margin-top: 12px; }
+}
+
+@media (min-width: 1100px) {
+  main { padding: 14px 24px; gap: 10px; }
+  .board, .column { gap: 10px; }
+  .card { padding: 10px 14px; }
+  .big { font-size: 26px; }
+  .bar { margin: 26px 0 20px; }
+  button { min-height: 36px; padding: 6px 10px; }
+  .offers { gap: 6px; }
+  .offer { padding: 6px 10px; }
+}
