@@ -29,7 +29,7 @@ $$
 
 with $D$ = `maxDiscountBps` and $\bar\delta$ = `fullDeviation`. If $\delta = 0$ the instruction reverts: a position on target has no offer.
 
-![Discount against health factor for D = 5%, target 1.5, full deviation 0.3](/charts/trimskew-curve.svg)
+![Discount against health factor for D = 1%, target 1.5, full deviation 0.2](/charts/trimskew-curve.svg)
 
 ### A fill pays the average of where it starts and where it ends
 

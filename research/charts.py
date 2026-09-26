@@ -89,7 +89,7 @@ def morpho_bonus():
     save(fig, "morpho-bonus")
 
 
-def discount(deviation, max_bps=500, full=0.3):
+def discount(deviation, max_bps=100, full=0.2):
     return max_bps * min(deviation, full) / full
 
 
@@ -99,7 +99,7 @@ def trimskew_curve():
     fig, ax = plt.subplots(figsize=(6.4, 3.6))
     ax.plot(hf, [discount(max(0.0, (target - h) / target)) / 100 for h in hf], color=TRIM, linewidth=2)
     ax.axvline(target, color=MUTED, linestyle="--", linewidth=1)
-    ax.annotate("target", (target, 4.6), fontsize=9, color=MUTED, ha="right")
+    ax.annotate("target", (target, 0.92), fontsize=9, color=MUTED, ha="right")
     ax.set_xlabel("Health factor")
     ax.set_ylabel("Discount below oracle (%)")
     save(fig, "trimskew-curve")
