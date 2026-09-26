@@ -183,3 +183,30 @@ button.link { border: 0; background: none; padding: 0; min-height: 0; color: var
 .chip.auction { color: var(--warn); }
 .chip.danger { color: var(--bad); }
 .chip.muted-chip { color: var(--muted); }
+
+.cost-rows .saved strong { font-size: 30px; }
+.progress { display: grid; gap: 6px; }
+.progress-bar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.progress-bar div { height: 100%; background: var(--warn); transition: width .3s; }
+.progress-text { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.chart-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 14px; font-size: 14px; }
+.chart-head > strong { font-size: 22px; }
+.legend { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+.dot.bot, .dot.trim { background: var(--good); }
+.dot.keeper { background: var(--bad); }
+.timeline { width: 100%; height: auto; display: block; }
+.timeline .grid { stroke: var(--line); }
+.timeline .tick { font-size: 11px; fill: var(--muted); text-anchor: middle; font-variant-numeric: tabular-nums; }
+.timeline .tick.end { text-anchor: end; }
+.timeline .tick.start { text-anchor: start; }
+.timeline .price-line { fill: none; stroke: var(--text); stroke-width: 2.2; }
+.timeline .fill-dot { fill: var(--good); stroke: var(--card); stroke-width: 2; }
+.timeline .keeper-line { fill: none; stroke: var(--bad); stroke-width: 2.4; }
+.timeline .trim-line { fill: none; stroke: var(--good); stroke-width: 2.4; }
+.timeline .saved-area { fill: var(--good); opacity: 0.12; }
+@media (min-width: 1100px) {
+  .board.charts:has(> .card.simple) { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 10px; }
+}
+.rows .price small { font-size: 13px; }
+.timeline .tick { font-size: 12px; }

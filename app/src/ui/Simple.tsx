@@ -1,4 +1,6 @@
-import type { Fill, TargetQuote, TrimState } from "../lib/useTrim";
+import type { CrashProgress, Fill, TargetQuote, TrimState } from "../lib/useTrim";
+import type { TimelinePoint } from "../lib/timeline";
+import { CostChart, PriceChart } from "./Charts";
 import { ownerTotals } from "../lib/bot";
 import { curveDiscount, formatHealthFactor, formatToken, healthStatus, keeperLeak, loanToValue, ltvAtHealthFactor, type CurveParams } from "../lib/trim";
 import { hf, percent, TxLink, usdc, wethInUsdc } from "./format";
@@ -42,7 +44,10 @@ function PositionCard({ state, curve }: { state: TrimState; curve: CurveParams }
   );
 }
 
-function OfferCard({ state, curve, targetQuote, busy, movePrice, resetPrice, fillToTarget, crashWithBot }: {
+function OfferCard({ state, curve, targetQuote, busy, movePrice, resetPrice, fillToTarget, crashWithBot, crash, stopCrash, openPrice }: {
+  crash: CrashProgress | null;
+  stopCrash: () => void;
+  openPrice: number;
   state: TrimState;
   curve: CurveParams;
   targetQuote: TargetQuote;
@@ -56,9 +61,14 @@ function OfferCard({ state, curve, targetQuote, busy, movePrice, resetPrice, fil
   const average = targetQuote ? Number(targetQuote.amountOut - targetQuote.fairOut) / Number(targetQuote.amountOut) : 0;
   return (
     <section className="card simple">
-      <h2>2 · The price falls, the position makes an offer</h2>
+      <h2>2 · The offer</h2>
       <div className="rows">
-        <div><span>ETH price (Aave oracle)</span><strong className="price">{dollars(Number(state.ethPrice) / 1e8)}</strong></div>
+        <div>
+          <span>ETH price (Aave oracle)</span>
+          <strong className="price">
+            {dollars(Number(state.ethPrice) / 1e8)} <small>{((Number(state.ethPrice) / 1e8 / openPrice - 1) * 100).toFixed(1)}% since start</small>
+          </strong>
+        </div>
       </div>
       <div className="buttons">
         <button className="primary" disabled={busy !== null} onClick={() => movePrice(-10)}>ETH −10%</button>
@@ -78,7 +88,17 @@ function OfferCard({ state, curve, targetQuote, busy, movePrice, resetPrice, fil
           <button className="primary wide" disabled={busy !== null} onClick={fillToTarget}>Fill to target, as a bot</button>
         </div>
       )}
-      <button className="wide" disabled={busy !== null} onClick={crashWithBot}>Slow crash −20%, a bot watching every step</button>
+      {crash ? (
+        <div className="progress">
+          <div className="progress-bar"><div style={{ width: `${(crash.step / crash.steps) * 100}%` }} /></div>
+          <div className="progress-text">
+            <span>Step {crash.step} / {crash.steps} · ETH {dollars(crash.price)} · bot filled {crash.fills}×</span>
+            <button className="small" onClick={stopCrash}>Stop</button>
+          </div>
+        </div>
+      ) : (
+        <button className="wide" disabled={busy !== null} onClick={crashWithBot}>Slow crash −20%, a bot watching every step</button>
+      )}
     </section>
   );
 }
@@ -101,11 +121,11 @@ function CostCard({ fills, explorerUrl }: { fills: Fill[]; explorerUrl: string |
             <div><span>Debt repaid</span><strong>{usdc(moved, 0)}</strong></div>
             <div><span>Cost with Trim</span><strong className="good">{usdc(totals.cost)} ({percent(totals.cost / moved)})</strong></div>
             <div><span>Cost with a keeper</span><strong className="bad">{usdc(totals.keeperCost)} ({percent(keeperLeak(moved))})</strong></div>
-            <div><span>Saved</span><strong className="good">{usdc(totals.saved)}</strong></div>
+            <div className="saved"><span>Saved</span><strong className="good">{usdc(totals.saved)}</strong></div>
           </div>
           <div className="rows">
             <div><span>Transactions</span><strong>{fills.length} <small>no keeper, no fee</small></strong></div>
-            <div><span>Latest</span><strong><TxLink hash={fills[0].hash} explorerUrl={explorerUrl} /></strong></div>
+            <div><span>Latest</span><strong>{explorerUrl ? <a href={`${explorerUrl}/tx/${fills[0].hash}`} target="_blank" rel="noreferrer">View transaction ↗</a> : <TxLink hash={fills[0].hash} explorerUrl={null} />}</strong></div>
           </div>
         </>
       )}
@@ -113,7 +133,11 @@ function CostCard({ fills, explorerUrl }: { fills: Fill[]; explorerUrl: string |
   );
 }
 
-export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, movePrice, resetPrice, fillToTarget, crashWithBot, showDetails }: {
+export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, movePrice, resetPrice, fillToTarget, crashWithBot, showDetails, timeline, crash, stopCrash, openPrice }: {
+  timeline: TimelinePoint[];
+  crash: CrashProgress | null;
+  stopCrash: () => void;
+  openPrice: number;
   state: TrimState;
   curve: CurveParams;
   fills: Fill[];
@@ -130,9 +154,15 @@ export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, mo
     <>
       <div className="board">
         <PositionCard state={state} curve={curve} />
-        <OfferCard state={state} curve={curve} targetQuote={targetQuote} busy={busy} movePrice={movePrice} resetPrice={resetPrice} fillToTarget={fillToTarget} crashWithBot={crashWithBot} />
+        <OfferCard state={state} curve={curve} targetQuote={targetQuote} busy={busy} movePrice={movePrice} resetPrice={resetPrice} fillToTarget={fillToTarget} crashWithBot={crashWithBot} crash={crash} stopCrash={stopCrash} openPrice={openPrice} />
         <CostCard fills={fills} explorerUrl={explorerUrl} />
       </div>
+      {timeline.length > 0 && (
+        <div className="board charts">
+          <PriceChart points={timeline} />
+          <CostChart points={timeline} />
+        </div>
+      )}
       <p className="how">
         How: the discount is priced by <strong>TrimSkew</strong>, one new SwapVM instruction, and the swap settles through the official 1inch Aqua on a mainnet
         fork. <a href="/docs/how-it-works" target="_blank" rel="noreferrer">How it works</a> ·{" "}

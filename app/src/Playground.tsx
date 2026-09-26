@@ -58,6 +58,10 @@ export function Playground() {
           fillToTarget={trim.fillToTarget}
           crashWithBot={() => trim.slowCrash(20, 20, true)}
           showDetails={toggleDetails}
+          timeline={trim.timeline}
+          crash={trim.crash}
+          stopCrash={trim.stopSlowCrash}
+          openPrice={session ? Number(session.openPrice) / 1e8 : Number(state.ethPrice) / 1e8}
         />
       ) : (() => {
         const selected = state.quotes[picked] ? picked : Math.max(0, state.quotes.findLastIndex((quote) => quote !== null));
