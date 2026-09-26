@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FILL_SIZES, useTrim, type Activity, type DemoConfig, type Fill, type Quote, type TrimState } from "./lib/useTrim";
 import { accounts } from "./lib/chain";
+import { curveFromOrderData, trimSkewInstruction } from "./lib/order";
 import {
   curveDiscount,
   fillLedger,
@@ -279,6 +280,79 @@ function Filler({ state, busy, fills, fill, curve, explorerUrl }: {
   );
 }
 
+const PRESETS = [
+  { name: "Production", maxDiscountBps: 100, fullDeviation: 200_000_000_000_000_000n },
+  { name: "Aggressive", maxDiscountBps: 500, fullDeviation: 300_000_000_000_000_000n },
+  { name: "Patient", maxDiscountBps: 50, fullDeviation: 400_000_000_000_000_000n },
+];
+
+function Owner({ state, busy, shipCurve }: { state: TrimState; busy: string | null; shipCurve: (maxDiscountBps: number, fullDeviation: bigint) => void }) {
+  const instruction = trimSkewInstruction(state.order.data);
+  const current = curveFromOrderData(state.order.data);
+  const shippedCurves = new Set(state.shipped.map((order) => {
+    const curve = curveFromOrderData(order.data);
+    return curve ? `${curve.maxDiscountBps}/${curve.fullDeviation}` : "";
+  }));
+  return (
+    <section className="card">
+      <h2>Owner: the curve lives in the program bytes</h2>
+      {instruction && (
+        <div className="program">
+          <span title="opcode">{instruction.opcode}</span>
+          <span title="length">{instruction.length}</span>
+          <span title="source">{instruction.source.slice(0, 8)}…</span>
+          <span className="arg" title="maxDiscountBps">{instruction.maxDiscountBps}</span>
+          <span className="arg" title="fullDeviation">{instruction.fullDeviation}</span>
+        </div>
+      )}
+      <p className="muted">
+        Opcode <code>0xb6</code>, then the source, then {current ? `${current.maxDiscountBps} bps` : "?"} and{" "}
+        {current ? `${Number(current.fullDeviation) / 1e16}%` : "?"}. A filler can read the whole pricing rule before it fills.
+      </p>
+      <div className="buttons">
+        {PRESETS.map((preset) => {
+          const key = `${preset.maxDiscountBps}/${preset.fullDeviation}`;
+          const active = current && `${current.maxDiscountBps}/${current.fullDeviation}` === key;
+          return (
+            <button key={preset.name} className={active ? "active" : ""} disabled={busy !== null || shippedCurves.has(key)} onClick={() => shipCurve(preset.maxDiscountBps, preset.fullDeviation)}>
+              {preset.name} {preset.maxDiscountBps / 100}% / {Number(preset.fullDeviation) / 1e16}%
+            </button>
+          );
+        })}
+      </div>
+      <p className="muted role">
+        Signed by the owner {short(accounts.owner.address)}. Aqua strategies are immutable, so each curve ships once per session and
+        the vault only honours the latest; Reset demo brings back Production.
+      </p>
+    </section>
+  );
+}
+
+const QUESTIONS: [string, string][] = [
+  ["Why not a keeper, like DeFi Saver?", "We measured all 919 DeFi Saver automated rebalances on Aave v3 over twelve months: the median leaks 0.48% of the amount moved, 0.56% between $1k and $10k, mostly service fee and marked-up gas. Trim has no operator to pay."],
+  ["Isn't this just a Dutch auction, like UniswapX or Fusion?", "Those are driven by a clock and need someone to sign each order. A Trim strategy is shipped once. Its price moves with the position's own health, it fills any size up to the target, and it stops by itself when the position is back."],
+  ["What if no bot comes?", "Over twelve months of Chainlink ETH/USD, the worst 40-minute drop was 13.1%, so a trigger at HF 1.15 survives it with no filler at all. And in a crash the discount grows fast, so fills come sooner."],
+  ["Can one bot take the whole rebalance at the best price?", "No. A fill pays the average of the discount where it starts and where it ends, so a big fill gets a worse average. Splitting it into pieces pays exactly the same total."],
+  ["Does the filler get any power over the owner's funds?", "No. It swaps at the curve's price through the SwapVM router; the vault's hooks only accept its own latest order, and every fill must move the position toward the target."],
+  ["Is it only for Aave?", "No. TrimSkew asks its source four view questions: deviation now, deviation after, and the fair amount either way. The balanced vault in the repo uses the same instruction unchanged. The one limit: the asset must leave in the same transaction."],
+  ["What is live here and what is not?", "This is an Ethereum mainnet fork at block 26,050,000: Aave v3 and the official Aqua at 0x4999…6d31 are the real contracts. Only the Aave price oracle is swapped for one the market buttons can move. Every transaction is on the explorer."],
+  ["Why did a crash fill cost 0.47%?", "The demo moves the price 10% at a time with no bot watching in between, so the position drifts far before anyone fills. Live, the first bot fills as soon as the discount covers its cost, around 0.1-0.2% for UniswapX fillers today."],
+];
+
+function Questions() {
+  return (
+    <section className="card">
+      <h2>Questions</h2>
+      {QUESTIONS.map(([question, answer]) => (
+        <details key={question} className="question">
+          <summary>{question}</summary>
+          <p>{answer}</p>
+        </details>
+      ))}
+    </section>
+  );
+}
+
 function ActivityLog({ activity, explorerUrl }: { activity: Activity[]; explorerUrl: string | null }) {
   if (activity.length === 0) return null;
   return (
@@ -310,13 +384,14 @@ function DemoBar({ demo, busy, resetDemo }: { demo: DemoConfig | null; busy: str
 }
 
 export function App() {
-  const { deployments, state, fills, activity, demo, busy, error, movePrice, resetPrice, resetDemo, fill } = useTrim();
+  const { deployments, state, fills, activity, demo, busy, error, movePrice, resetPrice, resetDemo, shipCurve, fill } = useTrim();
   const explorerUrl = demo?.explorerUrl ?? null;
   const [picked, setPicked] = useState(1);
-  const curve: CurveParams | null = deployments
+  const shippedCurve = state ? curveFromOrderData(state.order.data) : null;
+  const curve: CurveParams | null = deployments && shippedCurve
     ? {
-        maxDiscountBps: Number(deployments.maxDiscountBps),
-        fullDeviation: Number(deployments.fullDeviation) / 1e18,
+        maxDiscountBps: shippedCurve.maxDiscountBps,
+        fullDeviation: Number(shippedCurve.fullDeviation) / 1e18,
         target: Number(deployments.targetHealthFactor) / 1e18,
       }
     : null;
@@ -339,7 +414,9 @@ export function App() {
           <Curve state={state} curve={curve} quote={state.quotes[selected]} />
           <Offers state={state} selected={selected} select={setPicked} />
           <Filler state={state} busy={busy} fills={fills} fill={fill} curve={curve} explorerUrl={explorerUrl} />
+          <Owner state={state} busy={busy} shipCurve={shipCurve} />
           <ActivityLog activity={activity} explorerUrl={explorerUrl} />
+          <Questions />
         </>
         );
       })()}

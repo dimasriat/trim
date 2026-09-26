@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AAVE_POOL, abis, accounts, loadDeployments, orderOf, publicClient, wallets, type Deployments } from "./chain";
+import { decodeAbiParameters } from "viem";
+import { AAVE_POOL, abis, accounts, loadDeployments, orderOf, publicClient, wallets, type Deployments, type Order } from "./chain";
+import { withCurve } from "./order";
 import { fillSteps } from "./events";
 
 export const FILL_SIZES = [500_000_000n, 2_000_000_000n, 5_000_000_000n];
@@ -17,6 +19,8 @@ export type TrimState = {
   quotes: Quote[];
   fillerWeth: bigint;
   fillerUsdc: bigint;
+  order: Order;
+  shipped: Order[];
 };
 
 export type Fill = {
@@ -42,13 +46,29 @@ async function loadDemoConfig(): Promise<DemoConfig> {
   return response.json();
 }
 
-async function readQuote(d: Deployments, amountIn: bigint): Promise<Quote> {
+const FORK_BLOCK = 26_050_000n;
+const COLLATERAL_LIMIT = 10n * 10n ** 18n;
+
+async function readShippedOrders(d: Deployments): Promise<Order[]> {
+  const logs = await publicClient.getLogs({ address: d.aqua, event: abis.aqua[0], fromBlock: FORK_BLOCK, toBlock: "latest" });
+  return logs
+    .filter((log) => log.args.maker?.toLowerCase() === d.vault.toLowerCase())
+    .map((log) => {
+      const [order] = decodeAbiParameters(
+        [{ type: "tuple", components: [{ name: "maker", type: "address" }, { name: "traits", type: "uint256" }, { name: "data", type: "bytes" }] }],
+        log.args.strategy!,
+      );
+      return order as Order;
+    });
+}
+
+async function readQuote(d: Deployments, order: Order, amountIn: bigint): Promise<Quote> {
   try {
     const { result } = await publicClient.simulateContract({
       address: d.filler,
       abi: abis.filler,
       functionName: "quote",
-      args: [orderOf(d), d.usdc, d.weth, amountIn],
+      args: [order, d.usdc, d.weth, amountIn],
       account: accounts.filler,
     });
     const fairOut = await publicClient.readContract({
@@ -71,6 +91,8 @@ async function readQuote(d: Deployments, amountIn: bigint): Promise<Quote> {
 }
 
 async function readState(d: Deployments): Promise<TrimState> {
+  const shipped = await readShippedOrders(d);
+  const order = shipped.at(-1) ?? orderOf(d);
   const [healthFactor, target, account, ethPrice, usdcPrice, fillerWeth, fillerUsdc, ...quotes] = await Promise.all([
     publicClient.readContract({ address: d.vault, abi: abis.vault, functionName: "healthFactor" }),
     publicClient.readContract({ address: d.vault, abi: abis.vault, functionName: "targetHealthFactor" }),
@@ -79,7 +101,7 @@ async function readState(d: Deployments): Promise<TrimState> {
     publicClient.readContract({ address: d.oracle, abi: abis.oracle, functionName: "getAssetPrice", args: [d.usdc] }),
     publicClient.readContract({ address: d.weth, abi: abis.erc20, functionName: "balanceOf", args: [d.filler] }),
     publicClient.readContract({ address: d.usdc, abi: abis.erc20, functionName: "balanceOf", args: [d.filler] }),
-    ...FILL_SIZES.map((size) => readQuote(d, size)),
+    ...FILL_SIZES.map((size) => readQuote(d, order, size)),
   ]);
   return {
     healthFactor,
@@ -92,6 +114,8 @@ async function readState(d: Deployments): Promise<TrimState> {
     quotes: quotes as Quote[],
     fillerWeth,
     fillerUsdc,
+    order,
+    shipped,
   };
 }
 
@@ -165,14 +189,15 @@ export function useTrim() {
 
   const fill = useCallback((amountIn: bigint) => run("fill", async () => {
     if (!deployments) return;
-    const quote = await readQuote(deployments, amountIn);
+    const order = (await readShippedOrders(deployments)).at(-1) ?? orderOf(deployments);
+    const quote = await readQuote(deployments, order, amountIn);
     if (!quote) throw new Error("No offer at this size");
     const hfBefore = await publicClient.readContract({ address: deployments.vault, abi: abis.vault, functionName: "healthFactor" });
     const hash = await wallets.filler.writeContract({
       address: deployments.filler,
       abi: abis.filler,
       functionName: "fill",
-      args: [orderOf(deployments), deployments.usdc, deployments.weth, amountIn, quote.amountOut],
+      args: [order, deployments.usdc, deployments.weth, amountIn, quote.amountOut],
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     const [hfAfter, ethPrice, usdcPrice] = await Promise.all([
@@ -199,6 +224,19 @@ export function useTrim() {
     ]);
   }), [deployments, run]);
 
+  const shipCurve = useCallback((maxDiscountBps: number, fullDeviation: bigint) => run("ship", async () => {
+    if (!deployments || !state) return;
+    const order = { ...state.order, data: withCurve(state.order.data, maxDiscountBps, fullDeviation) };
+    const hash = await wallets.owner.writeContract({
+      address: deployments.vault,
+      abi: abis.vault,
+      functionName: "ship",
+      args: [order, COLLATERAL_LIMIT],
+    });
+    await publicClient.waitForTransactionReceipt({ hash });
+    setActivity((previous) => [{ hash, label: `Owner shipped a curve: ${maxDiscountBps / 100}% max at ${Number(fullDeviation) / 1e16}% below target`, signer: accounts.owner.address }, ...previous]);
+  }), [deployments, state, run]);
+
   const resetDemo = useCallback(() => run("reset", async () => {
     const response = await fetch("/reset", { method: "POST" });
     if (!response.ok) throw new Error(await response.text());
@@ -206,5 +244,5 @@ export function useTrim() {
     setActivity([]);
   }), [run]);
 
-  return { deployments, state, fills, activity, demo, busy, error, movePrice, resetPrice, resetDemo, fill, openPrice: openPrice.current };
+  return { deployments, state, fills, activity, demo, busy, error, movePrice, resetPrice, resetDemo, shipCurve, fill, openPrice: openPrice.current };
 }

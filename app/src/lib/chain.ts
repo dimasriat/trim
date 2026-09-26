@@ -42,6 +42,7 @@ export const accounts = {
 export const wallets = {
   market: createWalletClient({ chain: demoFork, transport, account: accounts.market }),
   filler: createWalletClient({ chain: demoFork, transport, account: accounts.filler }),
+  owner: createWalletClient({ chain: demoFork, transport, account: accounts.owner }),
 };
 
 export const abis = {
@@ -50,7 +51,10 @@ export const abis = {
     "function targetHealthFactor() view returns (uint256)",
     "function fairAmountOut(address tokenIn, address tokenOut, uint256 amountIn) view returns (uint256)",
     "function deviationAfter(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut) view returns (uint256)",
+    "struct Order { address maker; uint256 traits; bytes data; }",
+    "function ship(Order order, uint256 collateralLimit) returns (bytes32)",
   ]),
+  aqua: parseAbi(["event Shipped(address maker, address app, bytes32 strategyHash, bytes strategy)"]),
   pool: parseAbi([
     "function getUserAccountData(address user) view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor)",
   ]),
@@ -71,6 +75,8 @@ export async function loadDeployments(): Promise<Deployments> {
   return response.json();
 }
 
-export function orderOf(d: Deployments) {
+export type Order = { maker: `0x${string}`; traits: bigint; data: `0x${string}` };
+
+export function orderOf(d: Deployments): Order {
   return { maker: d.orderMaker, traits: BigInt(d.orderTraits), data: d.orderData };
 }
