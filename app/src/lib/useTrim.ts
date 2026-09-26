@@ -327,7 +327,7 @@ export function useTrim() {
     ]);
     const gasUsdc = (Number(FILL_GAS * gasPrice) / 1e18) * (Number(ethPrice) / Number(usdcPrice));
     const discountUsdc = (Number(size) / 1e6) * (Number(filled.amountOut) / Number(filled.fairOut) - 1);
-    if (discountUsdc < gasUsdc) return;
+    if (discountUsdc < gasUsdc + (Number(size) / 1e6) * (costBps / 10_000)) return;
     await writeFill(order, size, filled.amountOut);
   }, [deployments, currentOrder, writeFill]);
 
