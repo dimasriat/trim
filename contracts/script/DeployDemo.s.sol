@@ -50,7 +50,7 @@ contract DeployDemo is Script {
         IERC20(WETH).approve(address(vault), COLLATERAL);
         vault.open(COLLATERAL, debt);
         vault.ship(order, COLLATERAL);
-        IERC20(USDC).transfer(address(filler), debt / 2);
+        IERC20(USDC).transfer(address(filler), debt);
         vm.stopBroadcast();
 
         string memory json = "demo";
