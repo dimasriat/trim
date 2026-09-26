@@ -112,19 +112,18 @@ function Market({ state, busy, movePrice, resetPrice }: {
   );
 }
 
-const CURVE_RIGHT_HF = 1.1;
-
 function Curve({ state, curve, quote }: { state: TrimState; curve: CurveParams; quote: Quote }) {
   const width = 320;
   const height = 150;
   const pad = { left: 36, right: 10, top: 12, bottom: 34 };
   const maxDiscount = curve.maxDiscountBps / 10_000;
-  const x = (value: number) => pad.left + ((curve.target - value) / (curve.target - CURVE_RIGHT_HF)) * (width - pad.left - pad.right);
-  const y = (discount: number) => height - pad.bottom - (discount / maxDiscount) * (height - pad.top - pad.bottom);
   const fullHf = curve.target * (1 - curve.fullDeviation);
+  const rightHf = Math.max(0.8, Math.min(1.1, Math.floor((fullHf - 0.05) * 10) / 10));
+  const x = (value: number) => pad.left + ((curve.target - value) / (curve.target - rightHf)) * (width - pad.left - pad.right);
+  const y = (discount: number) => height - pad.bottom - (discount / maxDiscount) * (height - pad.top - pad.bottom);
   const now = hf(state.healthFactor);
-  const nowInView = now < curve.target && now >= CURVE_RIGHT_HF;
-  const ticks = [curve.target, 1.4, 1.3, fullHf, CURVE_RIGHT_HF];
+  const nowInView = now < curve.target && now >= rightHf;
+  const ticks = [curve.target, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8].filter((tick) => tick <= curve.target && tick >= rightHf - 1e-9);
   const start = quote ? curveDiscount(now, curve) : 0;
   const end = quote ? curveDiscount(quote.healthFactorAfter, curve) : 0;
   return (
@@ -142,7 +141,7 @@ function Curve({ state, curve, quote }: { state: TrimState; curve: CurveParams; 
           </g>
         ))}
         <polyline
-          points={`${x(curve.target)},${y(0)} ${x(fullHf)},${y(maxDiscount)} ${x(CURVE_RIGHT_HF)},${y(maxDiscount)}`}
+          points={`${x(curve.target)},${y(0)} ${x(fullHf)},${y(maxDiscount)} ${x(rightHf)},${y(maxDiscount)}`}
           className="line"
         />
         {quote && nowInView && (
