@@ -26,8 +26,8 @@ contract DeployDemo is Script {
     uint256 constant COLLATERAL = 10e18;
     uint256 constant OPEN_HF = 1.6e18;
     uint256 constant TARGET_HF = 1.5e18;
-    uint16 constant MAX_DISCOUNT_BPS = 500;
-    uint64 constant FULL_DEVIATION = 0.3e18;
+    uint16 constant MAX_DISCOUNT_BPS = 100;
+    uint64 constant FULL_DEVIATION = 0.2e18;
 
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_KEY");
@@ -63,6 +63,9 @@ contract DeployDemo is Script {
         vm.serializeAddress(json, "oracle", address(ORACLE));
         vm.serializeAddress(json, "weth", WETH);
         vm.serializeAddress(json, "usdc", USDC);
+        vm.serializeUint(json, "maxDiscountBps", MAX_DISCOUNT_BPS);
+        vm.serializeUint(json, "fullDeviation", FULL_DEVIATION);
+        vm.serializeUint(json, "targetHealthFactor", TARGET_HF);
         vm.serializeAddress(json, "orderMaker", order.maker);
         vm.serializeUint(json, "orderTraits", uint256(MakerTraits.unwrap(order.traits)));
         string memory out = vm.serializeBytes(json, "orderData", order.data);
