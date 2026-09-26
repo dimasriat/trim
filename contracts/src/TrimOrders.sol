@@ -6,7 +6,11 @@ import { MakerTraitsLib } from "@1inch/swap-vm/contracts/libs/MakerTraits.sol";
 
 import { TrimSkew } from "./instructions/TrimSkew.sol";
 
+/// @title TrimOrders
+/// @notice Builds the Aqua SwapVM order for a Trim maker: program = TrimSkew with the maker as price source.
 library TrimOrders {
+    /// @dev Tokens are sorted into tokenA < tokenB. The order uses Aqua instead of a signature. With
+    ///      `withHooks`, postTransferIn and preTransferOut hooks point at the maker (TrimAaveVault needs them).
     function build(address maker, address tokenX, address tokenY, bool withHooks, uint16 maxDiscountBps, uint64 fullDeviation)
         internal
         pure
