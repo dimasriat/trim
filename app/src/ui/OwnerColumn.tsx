@@ -30,7 +30,7 @@ export function Position({ state, curve, vault, explorerUrl }: { state: TrimStat
         </div>
       </div>
       <p className={`status ${status}`}>
-        {deviation === 0
+        {deviation < 0.0005
           ? "At or below target LTV. No offer is open."
           : `HF is ${percent(deviation, 1)} below target, so the position is auctioning its rebalance.`}
       </p>
