@@ -6,7 +6,6 @@ import type { CurveParams } from "./trim";
 import { fillSteps } from "./events";
 import { pairFills } from "./history";
 import { largestPassing } from "./bot";
-import { buildTimeline, type TimelinePoint } from "./timeline";
 
 export const FILL_SIZES = [500_000_000n, 2_000_000_000n, 5_000_000_000n];
 
@@ -52,7 +51,9 @@ export type Fill = {
   curve: CurveParams | null;
 };
 
-export type Activity = { hash: Hex; block: bigint; label: string; signer: `0x${string}` };
+export type ActivityKind = "oracle" | "bot" | "owner";
+
+export type Activity = { hash: Hex; block: bigint; kind: ActivityKind; label: string; signer: `0x${string}` };
 
 export type Session = { startBlock: bigint; openPrice: bigint; fillerStartUsdc: bigint };
 
@@ -208,6 +209,7 @@ async function readPriceMoves(d: Deployments, fromBlock: bigint): Promise<(Activ
     hash: log.transactionHash,
     block: log.blockNumber,
     price: Number(log.args.price) / 1e8,
+    kind: "oracle" as const,
     label: `Oracle set ETH to ${(Number(log.args.price) / 1e8).toFixed(2)} USD`,
     signer: accounts.market.address,
   }));
@@ -224,7 +226,6 @@ export function useTrim() {
   const [error, setError] = useState<string | null>(null);
   const [autoBot, setAutoBot] = useState<AutoBot>({ on: false, costBps: 15 });
   const [targetQuote, setTargetQuote] = useState<TargetQuote>(null);
-  const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
   const [crash, setCrash] = useState<CrashProgress | null>(null);
   const stopCrash = useRef(false);
   const targetQuoteBlock = useRef<bigint | null>(null);
@@ -255,6 +256,7 @@ export function useTrim() {
       return {
         hash: shipment.hash,
         block: shipment.block,
+        kind: "owner",
         label: curve ? `Owner shipped a curve: ${curve.maxDiscountBps / 100}% max at ${(Number(curve.fullDeviation) / 1e16).toFixed(0)}% below target` : "Owner shipped a curve",
         signer: accounts.owner.address,
       };
@@ -262,10 +264,10 @@ export function useTrim() {
     const fillActivity: Activity[] = allFills.map((fill) => ({
       hash: fill.hash,
       block: fill.block,
-      label: `Filler paid ${(Number(fill.amountIn) / 1e6).toLocaleString("en-US")} USDC`,
+      kind: "bot",
+      label: `Bot repaid ${(Number(fill.amountIn) / 1e6).toLocaleString("en-US")} USDC of debt, got ${(Number(fill.amountOut) / 1e18).toFixed(4)} WETH`,
       signer: accounts.filler.address,
     }));
-    setTimeline(buildTimeline(Number(currentSession.openPrice) / 1e8, priceMoves, allFills));
     setActivity([...priceMoves, ...ownerShips, ...fillActivity].sort((a, b) => (a.block > b.block ? -1 : a.block < b.block ? 1 : 0)));
     const block = await publicClient.getBlockNumber();
     if (targetQuoteBlock.current !== block) {
@@ -435,7 +437,6 @@ export function useTrim() {
     deployments,
     state,
     targetQuote,
-    timeline,
     crash,
     stopSlowCrash,
     session,
