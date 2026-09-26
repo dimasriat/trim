@@ -6,6 +6,7 @@ import type { CurveParams } from "./trim";
 import { fillSteps } from "./events";
 import { pairFills } from "./history";
 import { largestPassing } from "./bot";
+import { buildTimeline, type TimelinePoint } from "./timeline";
 
 export const FILL_SIZES = [500_000_000n, 2_000_000_000n, 5_000_000_000n];
 
@@ -58,6 +59,8 @@ export type Session = { startBlock: bigint; openPrice: bigint; fillerStartUsdc: 
 export type DemoConfig = { explorerUrl: string | null; epoch: number; resetEveryMinutes: number; nextResetAt: number | null };
 
 export type AutoBot = { on: boolean; costBps: number };
+
+export type CrashProgress = { step: number; steps: number; price: number; fills: number };
 
 export type TargetQuote = { amountIn: bigint; amountOut: bigint; fairOut: bigint } | null;
 
@@ -199,11 +202,12 @@ async function readFillEvents(d: Deployments, fromBlock: bigint) {
   return pairFills(moves(pushed), moves(pulled), { vault: d.vault, usdc: d.usdc, weth: d.weth });
 }
 
-async function readPriceMoves(d: Deployments, fromBlock: bigint): Promise<Activity[]> {
+async function readPriceMoves(d: Deployments, fromBlock: bigint): Promise<(Activity & { price: number })[]> {
   const logs = await publicClient.getLogs({ address: d.oracle, event: abis.oracleEvents[0], args: { asset: d.weth }, fromBlock, toBlock: "latest" });
   return logs.map((log) => ({
     hash: log.transactionHash,
     block: log.blockNumber,
+    price: Number(log.args.price) / 1e8,
     label: `Oracle set ETH to ${(Number(log.args.price) / 1e8).toFixed(2)} USD`,
     signer: accounts.market.address,
   }));
@@ -220,6 +224,9 @@ export function useTrim() {
   const [error, setError] = useState<string | null>(null);
   const [autoBot, setAutoBot] = useState<AutoBot>({ on: false, costBps: 15 });
   const [targetQuote, setTargetQuote] = useState<TargetQuote>(null);
+  const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
+  const [crash, setCrash] = useState<CrashProgress | null>(null);
+  const stopCrash = useRef(false);
   const targetQuoteBlock = useRef<bigint | null>(null);
   const fillCache = useRef(new Map<string, Fill>());
   const autoBotRef = useRef(autoBot);
@@ -258,6 +265,7 @@ export function useTrim() {
       label: `Filler paid ${(Number(fill.amountIn) / 1e6).toLocaleString("en-US")} USDC`,
       signer: accounts.filler.address,
     }));
+    setTimeline(buildTimeline(Number(currentSession.openPrice) / 1e8, priceMoves, allFills));
     setActivity([...priceMoves, ...ownerShips, ...fillActivity].sort((a, b) => (a.block > b.block ? -1 : a.block < b.block ? 1 : 0)));
     const block = await publicClient.getBlockNumber();
     if (targetQuoteBlock.current !== block) {
@@ -363,14 +371,27 @@ export function useTrim() {
   }, [session, setEthPrice]);
 
   const slowCrash = useCallback((totalPercent: number, steps: number, withBot = false) => run("crash", async () => {
-    if (!state) return;
+    if (!state || !deployments) return;
     const start = Number(state.ethPrice);
-    for (let i = 1; i <= steps; i++) {
-      await writePrice(BigInt(Math.round(start * (1 - (totalPercent / 100) * (i / steps)))));
-      if (withBot || autoBotRef.current.on) await botStep();
-      await refresh();
+    const fillsBefore = fillCache.current.size;
+    stopCrash.current = false;
+    setCrash({ step: 0, steps, price: start / 1e8, fills: 0 });
+    try {
+      for (let i = 1; i <= steps && !stopCrash.current; i++) {
+        const price = Math.round(start * (1 - (totalPercent / 100) * (i / steps)));
+        await writePrice(BigInt(price));
+        if (withBot || autoBotRef.current.on) await botStep();
+        await refresh();
+        setCrash({ step: i, steps, price: price / 1e8, fills: fillCache.current.size - fillsBefore });
+      }
+    } finally {
+      setCrash(null);
     }
-  }), [state, run, writePrice, botStep, refresh]);
+  }), [state, deployments, run, writePrice, botStep, refresh]);
+
+  const stopSlowCrash = useCallback(() => {
+    stopCrash.current = true;
+  }, []);
 
   const fill = useCallback((amountIn: bigint) => run("fill", async () => {
     if (!deployments) return;
@@ -414,6 +435,9 @@ export function useTrim() {
     deployments,
     state,
     targetQuote,
+    timeline,
+    crash,
+    stopSlowCrash,
     session,
     fills,
     activity,
