@@ -19,10 +19,10 @@ describe("totals", () => {
     { amountIn: 500_000_000n, amountOut: fairOut, fairOut, gasUsdc: 1.2 },
   ];
 
-  test("owner pays the discount and saves against the keeper median for each size", () => {
+  test("owner pays the discount and saves against one keeper rebalance of the same total", () => {
     const totals = ownerTotals(fills);
     expect(totals.cost).toBeCloseTo(10.05, 2);
-    expect(totals.keeperCost).toBeCloseTo(2_000 * 0.0056 + 500 * 0.0346, 6);
+    expect(totals.keeperCost).toBeCloseTo(2_500 * 0.0056, 6);
     expect(totals.saved).toBeCloseTo(totals.keeperCost - totals.cost, 9);
   });
 

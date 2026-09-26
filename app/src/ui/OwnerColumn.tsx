@@ -57,8 +57,8 @@ export function OwnerPnl({ fills }: { fills: Fill[] }) {
         <div><span className="muted">Saved</span><strong className={totals.saved >= 0 ? "good" : "bad"}>{signedUsdc(totals.saved)}</strong></div>
       </div>
       <p className="muted small">
-        {fills.length} fill{fills.length === 1 ? "" : "s"}. Paid = collateral given at the oracle price minus debt repaid. Keeper = DeFi Saver's measured
-        median leak for each fill's size.
+        {fills.length} fill{fills.length === 1 ? "" : "s"}. Paid = collateral given at the oracle price minus debt repaid. Keeper = one DeFi Saver rebalance of the
+        same total, at its measured median leak for that size.
       </p>
     </section>
   );

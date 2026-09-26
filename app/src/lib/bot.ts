@@ -16,12 +16,13 @@ export async function largestPassing(min: bigint, max: bigint, step: bigint, pas
 
 export function ownerTotals(fills: LedgerFill[]) {
   let cost = 0;
-  let keeperCost = 0;
+  let moved = 0;
   for (const fill of fills) {
     const ledger = fillLedger(fill);
     cost += ledger.positionCostUsdc;
-    keeperCost += ledger.debtRepaidUsdc * keeperLeak(ledger.debtRepaidUsdc);
+    moved += ledger.debtRepaidUsdc;
   }
+  const keeperCost = moved * keeperLeak(moved);
   return { cost, keeperCost, saved: keeperCost - cost };
 }
 
