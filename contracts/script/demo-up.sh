@@ -33,4 +33,5 @@ cast send "$ORACLE" "setPrice(address,uint256)" "$USDC" "$usdc_price" --private-
 export DEPLOYMENTS_PATH=${DEPLOYMENTS_PATH:-./deployments/anvil.json}
 forge script script/DeployDemo.s.sol --rpc-url "$RPC" --broadcast --slow >/dev/null
 cast rpc evm_snapshot --rpc-url "$RPC" | tr -d '"' >"${DEPLOYMENTS_PATH%.json}.snapshot"
+bun script/export-sourcify.ts "$DEPLOYMENTS_PATH" "${DEPLOYMENTS_PATH%.json}-sourcify" >/dev/null
 echo "demo ready on $RPC, WETH at $weth_price, $DEPLOYMENTS_PATH"
