@@ -1,6 +1,6 @@
 import type { CrashProgress, Fill, TargetQuote, TrimState } from "../lib/useTrim";
-import type { TimelinePoint } from "../lib/timeline";
-import { CostChart, PriceChart } from "./Charts";
+import { useState } from "react";
+import type { Activity, ActivityKind } from "../lib/useTrim";
 import { ownerTotals } from "../lib/bot";
 import { curveDiscount, formatHealthFactor, formatToken, healthStatus, keeperLeak, loanToValue, ltvAtHealthFactor, type CurveParams } from "../lib/trim";
 import { hf, percent, TxLink, usdc, wethInUsdc } from "./format";
@@ -133,8 +133,55 @@ function CostCard({ fills, explorerUrl }: { fills: Fill[]; explorerUrl: string |
   );
 }
 
-export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, movePrice, resetPrice, fillToTarget, crashWithBot, showDetails, timeline, crash, stopCrash, openPrice }: {
-  timeline: TimelinePoint[];
+const FILTERS: { key: ActivityKind | "all"; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "oracle", label: "Oracle" },
+  { key: "bot", label: "Bot fills" },
+  { key: "owner", label: "Owner" },
+];
+
+const KIND_LABEL: Record<ActivityKind, string> = { oracle: "Oracle", bot: "Bot", owner: "Owner" };
+
+function TransactionsCard({ activity, explorerUrl }: { activity: Activity[]; explorerUrl: string | null }) {
+  const [filter, setFilter] = useState<ActivityKind | "all">("all");
+  const shown = activity.filter((item) => filter === "all" || item.kind === filter);
+  return (
+    <section className="card simple transactions">
+      <div className="tx-head">
+        <h2>Transactions</h2>
+        <div className="tabs">
+          {FILTERS.map((f) => (
+            <button key={f.key} className={`small ${filter === f.key ? "active" : ""}`} onClick={() => setFilter(f.key)}>
+              {f.label} ({f.key === "all" ? activity.length : activity.filter((item) => item.kind === f.key).length})
+            </button>
+          ))}
+        </div>
+      </div>
+      {shown.length === 0 ? (
+        <p className="muted small">No transactions yet. Press "ETH −10%" to start.</p>
+      ) : (
+        <table className="tx-table">
+          <thead>
+            <tr><th>Block</th><th>Type</th><th>What happened</th><th>Transaction</th></tr>
+          </thead>
+          <tbody>
+            {shown.map((item) => (
+              <tr key={item.hash}>
+                <td>{item.block.toString()}</td>
+                <td><span className={`chip kind-${item.kind}`}>{KIND_LABEL[item.kind]}</span></td>
+                <td>{item.label}</td>
+                <td><TxLink hash={item.hash} explorerUrl={explorerUrl} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, movePrice, resetPrice, fillToTarget, crashWithBot, showDetails, activity, crash, stopCrash, openPrice }: {
+  activity: Activity[];
   crash: CrashProgress | null;
   stopCrash: () => void;
   openPrice: number;
@@ -157,12 +204,7 @@ export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, mo
         <OfferCard state={state} curve={curve} targetQuote={targetQuote} busy={busy} movePrice={movePrice} resetPrice={resetPrice} fillToTarget={fillToTarget} crashWithBot={crashWithBot} crash={crash} stopCrash={stopCrash} openPrice={openPrice} />
         <CostCard fills={fills} explorerUrl={explorerUrl} />
       </div>
-      {timeline.length > 0 && (
-        <div className="board charts">
-          <PriceChart points={timeline} />
-          <CostChart points={timeline} />
-        </div>
-      )}
+      <TransactionsCard activity={activity} explorerUrl={explorerUrl} />
       <p className="how">
         How: the discount is priced by <strong>TrimSkew</strong>, one new SwapVM instruction, and the swap settles through the official 1inch Aqua on a mainnet
         fork. <a href="/docs/how-it-works" target="_blank" rel="noreferrer">How it works</a> ·{" "}

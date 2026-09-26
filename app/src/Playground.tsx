@@ -58,7 +58,7 @@ export function Playground() {
           fillToTarget={trim.fillToTarget}
           crashWithBot={() => trim.slowCrash(20, 20, true)}
           showDetails={toggleDetails}
-          timeline={trim.timeline}
+          activity={activity}
           crash={trim.crash}
           stopCrash={trim.stopSlowCrash}
           openPrice={session ? Number(session.openPrice) / 1e8 : Number(state.ethPrice) / 1e8}
