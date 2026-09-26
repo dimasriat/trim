@@ -6,13 +6,14 @@ export default defineConfig({
   base: "/docs/",
   markdown: { math: true },
   themeConfig: {
-    nav: [{ text: "Demo", link: "https://trim.dimsky.xyz/" }],
     sidebar: [
       { text: "Overview", link: "/" },
       { text: "The problem, measured", link: "/problem" },
+      { text: "How it works, in two minutes", link: "/how-it-works" },
       { text: "The mechanism", link: "/mechanism" },
       { text: "Results", link: "/results" },
       { text: "What this does not answer yet", link: "/limits" },
+      { text: "Research data", link: "/data" },
     ],
   },
 });
