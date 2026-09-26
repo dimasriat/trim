@@ -343,12 +343,14 @@ function Questions() {
   return (
     <section className="card">
       <h2>Questions</h2>
-      {QUESTIONS.map(([question, answer]) => (
-        <details key={question} className="question">
-          <summary>{question}</summary>
-          <p>{answer}</p>
-        </details>
-      ))}
+      <div className="questions-grid">
+        {QUESTIONS.map(([question, answer]) => (
+          <details key={question} className="question">
+            <summary>{question}</summary>
+            <p>{answer}</p>
+          </details>
+        ))}
+      </div>
     </section>
   );
 }
@@ -397,11 +399,13 @@ export function App() {
     : null;
   return (
     <main>
-      <header>
-        <h1>Trim</h1>
-        <p>A leveraged Aave position that auctions its own rebalance. No keeper: bots compete on price.</p>
-      </header>
-      <DemoBar demo={demo} busy={busy} resetDemo={resetDemo} />
+      <div className="top">
+        <header>
+          <h1>Trim</h1>
+          <p>A leveraged Aave position that auctions its own rebalance. No keeper: bots compete on price.</p>
+        </header>
+        <DemoBar demo={demo} busy={busy} resetDemo={resetDemo} />
+      </div>
       {error && <p className="error">{error}</p>}
       {!state || !curve ? (
         <p className="muted">Connecting to the fork…</p>
@@ -409,13 +413,21 @@ export function App() {
         const selected = state.quotes[picked] ? picked : Math.max(0, state.quotes.findLastIndex((quote) => quote !== null));
         return (
         <>
-          <Position state={state} curve={curve} vault={deployments!.vault} explorerUrl={explorerUrl} />
-          <Market state={state} busy={busy} movePrice={movePrice} resetPrice={resetPrice} />
-          <Curve state={state} curve={curve} quote={state.quotes[selected]} />
-          <Offers state={state} selected={selected} select={setPicked} />
-          <Filler state={state} busy={busy} fills={fills} fill={fill} curve={curve} explorerUrl={explorerUrl} />
-          <Owner state={state} busy={busy} shipCurve={shipCurve} />
-          <ActivityLog activity={activity} explorerUrl={explorerUrl} />
+          <div className="board">
+            <div className="column">
+              <Position state={state} curve={curve} vault={deployments!.vault} explorerUrl={explorerUrl} />
+              <Market state={state} busy={busy} movePrice={movePrice} resetPrice={resetPrice} />
+              <Owner state={state} busy={busy} shipCurve={shipCurve} />
+            </div>
+            <div className="column">
+              <Curve state={state} curve={curve} quote={state.quotes[selected]} />
+              <Offers state={state} selected={selected} select={setPicked} />
+            </div>
+            <div className="column">
+              <Filler state={state} busy={busy} fills={fills} fill={fill} curve={curve} explorerUrl={explorerUrl} />
+              <ActivityLog activity={activity} explorerUrl={explorerUrl} />
+            </div>
+          </div>
           <Questions />
         </>
         );
