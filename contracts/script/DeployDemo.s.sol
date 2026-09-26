@@ -36,7 +36,7 @@ contract DeployDemo is Script {
         address operator = vm.addr(vm.envUint("FILLER_KEY"));
 
         vm.startBroadcast(deployerKey);
-        Aqua aqua = new Aqua();
+        Aqua aqua = Aqua(0x499943E74FB0cE105688beeE8Ef2ABec5D936d31);
         TrimSwapVMRouter router = new TrimSwapVMRouter(address(aqua), WETH, vm.addr(deployerKey), "Trim", "1");
         TrimAaveVault vault = new TrimAaveVault(POOL, ORACLE, aqua, address(router), WETH, USDC, TARGET_HF, owner);
         TrimFiller filler = new TrimFiller(aqua, ISwapVM(address(router)), operator);

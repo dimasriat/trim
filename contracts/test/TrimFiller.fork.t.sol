@@ -29,7 +29,7 @@ contract TrimFillerForkTest is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("mainnet"), 26_050_000);
-        aqua = new Aqua();
+        aqua = Aqua(0x499943E74FB0cE105688beeE8Ef2ABec5D936d31);
         router = new TrimSwapVMRouter(address(aqua), WETH, address(this), "Trim", "1");
         vault = new TrimAaveVault(POOL, ORACLE, aqua, address(router), WETH, USDC, 1.5e18, owner);
         filler = new TrimFiller(aqua, ISwapVM(address(router)), bot);

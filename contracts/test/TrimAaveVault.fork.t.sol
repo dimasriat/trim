@@ -37,7 +37,7 @@ contract TrimAaveVaultForkTest is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("mainnet"), FORK_BLOCK);
-        aqua = new Aqua();
+        aqua = Aqua(0x499943E74FB0cE105688beeE8Ef2ABec5D936d31);
         router = new TrimSwapVMRouter(address(aqua), WETH, address(this), "Trim", "1");
         vault = new TrimAaveVault(POOL, ORACLE, aqua, address(router), WETH, USDC, TARGET_HF, owner);
         taker = new MockTaker(aqua, router, address(this));
