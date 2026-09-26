@@ -26,9 +26,11 @@ describe("totals", () => {
     expect(totals.saved).toBeCloseTo(totals.keeperCost - totals.cost, 9);
   });
 
-  test("bot earns the discount minus gas, and is marked to market on what it holds, net of gas", () => {
-    const totals = botTotals(fills, { startUsdc: 10_000, usdcNow: 7_500, wethNow: 1, ethPriceUsdc: 2_400 });
-    expect(totals.edge).toBeCloseTo(10.05 - 2.2, 2);
-    expect(totals.markToMarket).toBeCloseTo(-102.2, 6);
+  test("bot keeps the discount minus gas and the cost of selling the WETH at once", () => {
+    const totals = botTotals(fills, 15);
+    expect(totals.discount).toBeCloseTo(10.05, 2);
+    expect(totals.gas).toBeCloseTo(2.2, 9);
+    expect(totals.selling).toBeCloseTo(2_500 * 0.0015, 9);
+    expect(totals.profit).toBeCloseTo(10.05 - 2.2 - 3.75, 2);
   });
 });

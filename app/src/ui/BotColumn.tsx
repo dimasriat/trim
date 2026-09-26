@@ -3,7 +3,7 @@ import type { AutoBot, Fill, TrimState } from "../lib/useTrim";
 import { accounts } from "../lib/chain";
 import { botTotals } from "../lib/bot";
 import { curveDiscount, fillLedger, formatHealthFactor, formatToken, ltvAtHealthFactor } from "../lib/trim";
-import { ethInUsdc, hf, percent, short, signedUsdc, TxLink, usdc, wethInUsdc } from "./format";
+import { hf, percent, short, signedUsdc, TxLink, usdc, wethInUsdc } from "./format";
 
 export function Bot({ state, busy, autoBot, setAutoBot, fill, fillToTarget, runBotNow }: {
   state: TrimState;
@@ -39,39 +39,34 @@ export function Bot({ state, busy, autoBot, setAutoBot, fill, fillToTarget, runB
         <button className="small" disabled={busy !== null} onClick={runBotNow}>Run once</button>
       </div>
       <p className="muted small">
-        The threshold is what selling the WETH costs the bot. After every price move the auto-bot takes the largest fill whose average discount clears it, and only
-        if the discount also pays for about 460k gas; otherwise it waits.
+        The threshold is what selling the WETH costs the bot. After every price move the auto-bot takes the largest fill whose average discount clears it, and
+        only if the discount also pays for the gas and the sale; otherwise it waits.
       </p>
     </section>
   );
 }
 
-export function BotPnl({ state, fills }: { state: TrimState; fills: Fill[] }) {
-  const totals = botTotals(fills, {
-    startUsdc: (Number(state.fillerUsdc) + fills.reduce((sum, fill) => sum + Number(fill.amountIn), 0)) / 1e6,
-    usdcNow: Number(state.fillerUsdc) / 1e6,
-    wethNow: Number(state.fillerWeth) / 1e18,
-    ethPriceUsdc: ethInUsdc(state),
-  });
-  const gas = fills.reduce((sum, fill) => sum + fill.gasUsdc, 0);
+export function BotPnl({ fills, sellCostBps }: { fills: Fill[]; sellCostBps: number }) {
+  const totals = botTotals(fills, sellCostBps);
   return (
     <section className="card">
       <h2>Bot: profit and loss</h2>
       <div className="pnl">
-        <div><span className="muted">Earned at fill</span><strong className={totals.edge >= 0 ? "good" : "bad"}>{signedUsdc(totals.edge)}</strong></div>
-        <div><span className="muted">Marked to market</span><strong className={totals.markToMarket >= 0 ? "good" : "bad"}>{signedUsdc(totals.markToMarket)}</strong></div>
-        <div><span className="muted">Gas paid</span><strong>{usdc(gas)}</strong></div>
+        <div><span className="muted">Discount earned</span><strong>{usdc(totals.discount)}</strong></div>
+        <div><span className="muted">Gas and selling</span><strong>{usdc(totals.gas + totals.selling)}</strong></div>
+        <div><span className="muted">Profit</span><strong className={totals.profit >= 0 ? "good" : "bad"}>{signedUsdc(totals.profit)}</strong></div>
       </div>
-      <p className="muted small">The first number is locked in at fill time. The second also counts the WETH the bot still holds at the current price: holding it through a crash loses money, so real fillers sell at once.</p>
+      <p className="muted small">Like a real filler, the bot sells the WETH it receives right away, paying {sellCostBps} bps to do it. Profit = discount − gas − selling.</p>
     </section>
   );
 }
 
-export function Ledger({ fill, liquidationThresholdBps, explorerUrl }: { fill: Fill; liquidationThresholdBps: number; explorerUrl: string | null }) {
+export function Ledger({ fill, liquidationThresholdBps, explorerUrl, sellCostBps }: { fill: Fill; liquidationThresholdBps: number; explorerUrl: string | null; sellCostBps: number }) {
   const ledger = fillLedger(fill);
   const start = fill.curve ? curveDiscount(hf(fill.hfBefore), fill.curve) : 0;
   const end = fill.curve ? curveDiscount(hf(fill.hfAfter), fill.curve) : 0;
-  const edge = ledger.positionCostUsdc - fill.gasUsdc;
+  const selling = ledger.debtRepaidUsdc * (sellCostBps / 10_000);
+  const profit = ledger.positionCostUsdc - fill.gasUsdc - selling;
   return (
     <section className="card">
       <h2>Last fill <TxLink hash={fill.hash} explorerUrl={explorerUrl} /></h2>
@@ -88,9 +83,10 @@ export function Ledger({ fill, liquidationThresholdBps, explorerUrl }: { fill: F
         <div className="party">
           <div className="who">Bot</div>
           <div>Paid {usdc(ledger.debtRepaidUsdc)}</div>
-          <div>Gas {usdc(fill.gasUsdc)}</div>
-          <div className={`net ${edge >= 0 ? "good" : "bad"}`}>Edge {signedUsdc(edge)}</div>
-          <div className="muted">{edge < 0 ? "A rational bot would have waited." : "Before selling the WETH."}</div>
+          <div>Discount {usdc(ledger.positionCostUsdc)}</div>
+          <div>Gas {usdc(fill.gasUsdc)} · selling {usdc(selling)}</div>
+          <div className={`net ${profit >= 0 ? "good" : "bad"}`}>Profit {signedUsdc(profit)}</div>
+          {profit < 0 && <div className="muted">A rational bot would have waited.</div>}
         </div>
       </div>
       <p className="muted small">

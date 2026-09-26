@@ -26,8 +26,15 @@ export function ownerTotals(fills: LedgerFill[]) {
   return { cost, keeperCost, saved: keeperCost - cost };
 }
 
-export function botTotals(fills: LedgerFill[], { startUsdc, usdcNow, wethNow, ethPriceUsdc }: { startUsdc: number; usdcNow: number; wethNow: number; ethPriceUsdc: number }) {
-  const edge = fills.reduce((sum, fill) => sum + fillLedger(fill).positionCostUsdc - fill.gasUsdc, 0);
-  const gas = fills.reduce((sum, fill) => sum + fill.gasUsdc, 0);
-  return { edge, markToMarket: usdcNow + wethNow * ethPriceUsdc - startUsdc - gas };
+export function botTotals(fills: LedgerFill[], sellCostBps: number) {
+  let discount = 0;
+  let gas = 0;
+  let selling = 0;
+  for (const fill of fills) {
+    const ledger = fillLedger(fill);
+    discount += ledger.positionCostUsdc;
+    gas += fill.gasUsdc;
+    selling += ledger.debtRepaidUsdc * (sellCostBps / 10_000);
+  }
+  return { discount, gas, selling, profit: discount - gas - selling };
 }

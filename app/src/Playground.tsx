@@ -46,8 +46,8 @@ export function Playground() {
               <div className="column">
                 <h3 className="role-title">Filler bot</h3>
                 <Bot state={state} busy={busy} autoBot={trim.autoBot} setAutoBot={trim.setAutoBot} fill={trim.fill} fillToTarget={trim.fillToTarget} runBotNow={trim.runBotNow} />
-                <BotPnl state={state} fills={fills} />
-                {fills[0] && <Ledger fill={fills[0]} liquidationThresholdBps={state.liquidationThresholdBps} explorerUrl={explorerUrl} />}
+                <BotPnl fills={fills} sellCostBps={trim.autoBot.costBps} />
+                {fills[0] && <Ledger fill={fills[0]} liquidationThresholdBps={state.liquidationThresholdBps} explorerUrl={explorerUrl} sellCostBps={trim.autoBot.costBps} />}
               </div>
             </div>
             <div className="board lower">
