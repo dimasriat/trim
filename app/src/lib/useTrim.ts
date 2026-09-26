@@ -3,14 +3,16 @@ import { AAVE_POOL, abis, accounts, loadDeployments, orderOf, publicClient, wall
 
 export const FILL_SIZES = [500_000_000n, 2_000_000_000n, 5_000_000_000n];
 
-export type Quote = { amountIn: bigint; amountOut: bigint; fairOut: bigint } | null;
+export type Quote = { amountIn: bigint; amountOut: bigint; fairOut: bigint; healthFactorAfter: number } | null;
 
 export type TrimState = {
   healthFactor: bigint;
   target: bigint;
   collateralBase: bigint;
   debtBase: bigint;
+  liquidationThresholdBps: number;
   ethPrice: bigint;
+  usdcPrice: bigint;
   quotes: Quote[];
   fillerWeth: bigint;
   fillerUsdc: bigint;
@@ -20,9 +22,13 @@ export type Fill = {
   hash: `0x${string}`;
   amountIn: bigint;
   amountOut: bigint;
+  fairOut: bigint;
   hfBefore: bigint;
   hfAfter: bigint;
   gasUsed: bigint;
+  gasPrice: bigint;
+  ethPrice: bigint;
+  usdcPrice: bigint;
 };
 
 async function readQuote(d: Deployments, amountIn: bigint): Promise<Quote> {
@@ -40,18 +46,26 @@ async function readQuote(d: Deployments, amountIn: bigint): Promise<Quote> {
       functionName: "fairAmountOut",
       args: [d.usdc, d.weth, amountIn],
     });
-    return { amountIn: result[0], amountOut: result[1], fairOut };
+    const deviationAfter = await publicClient.readContract({
+      address: d.vault,
+      abi: abis.vault,
+      functionName: "deviationAfter",
+      args: [d.usdc, d.weth, amountIn, result[1]],
+    });
+    const target = d.targetHealthFactor / 1e18;
+    return { amountIn: result[0], amountOut: result[1], fairOut, healthFactorAfter: target * (1 - Number(deviationAfter) / 1e18) };
   } catch {
     return null;
   }
 }
 
 async function readState(d: Deployments): Promise<TrimState> {
-  const [healthFactor, target, account, ethPrice, fillerWeth, fillerUsdc, ...quotes] = await Promise.all([
+  const [healthFactor, target, account, ethPrice, usdcPrice, fillerWeth, fillerUsdc, ...quotes] = await Promise.all([
     publicClient.readContract({ address: d.vault, abi: abis.vault, functionName: "healthFactor" }),
     publicClient.readContract({ address: d.vault, abi: abis.vault, functionName: "targetHealthFactor" }),
     publicClient.readContract({ address: AAVE_POOL, abi: abis.pool, functionName: "getUserAccountData", args: [d.vault] }),
     publicClient.readContract({ address: d.oracle, abi: abis.oracle, functionName: "getAssetPrice", args: [d.weth] }),
+    publicClient.readContract({ address: d.oracle, abi: abis.oracle, functionName: "getAssetPrice", args: [d.usdc] }),
     publicClient.readContract({ address: d.weth, abi: abis.erc20, functionName: "balanceOf", args: [d.filler] }),
     publicClient.readContract({ address: d.usdc, abi: abis.erc20, functionName: "balanceOf", args: [d.filler] }),
     ...FILL_SIZES.map((size) => readQuote(d, size)),
@@ -61,7 +75,9 @@ async function readState(d: Deployments): Promise<TrimState> {
     target,
     collateralBase: account[0],
     debtBase: account[1],
+    liquidationThresholdBps: Number(account[3]),
     ethPrice,
+    usdcPrice,
     quotes: quotes as Quote[],
     fillerWeth,
     fillerUsdc,
@@ -138,9 +154,24 @@ export function useTrim() {
       args: [orderOf(deployments), deployments.usdc, deployments.weth, amountIn, quote.amountOut],
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    const hfAfter = await publicClient.readContract({ address: deployments.vault, abi: abis.vault, functionName: "healthFactor" });
+    const [hfAfter, ethPrice, usdcPrice] = await Promise.all([
+      publicClient.readContract({ address: deployments.vault, abi: abis.vault, functionName: "healthFactor" }),
+      publicClient.readContract({ address: deployments.oracle, abi: abis.oracle, functionName: "getAssetPrice", args: [deployments.weth] }),
+      publicClient.readContract({ address: deployments.oracle, abi: abis.oracle, functionName: "getAssetPrice", args: [deployments.usdc] }),
+    ]);
     setFills((previous) => [
-      { hash, amountIn, amountOut: quote.amountOut, hfBefore, hfAfter, gasUsed: receipt.gasUsed },
+      {
+        hash,
+        amountIn,
+        amountOut: quote.amountOut,
+        fairOut: quote.fairOut,
+        hfBefore,
+        hfAfter,
+        gasUsed: receipt.gasUsed,
+        gasPrice: receipt.effectiveGasPrice,
+        ethPrice,
+        usdcPrice,
+      },
       ...previous,
     ]);
   }), [deployments, run]);

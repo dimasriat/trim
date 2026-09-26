@@ -13,6 +13,9 @@ export type Deployments = {
   orderMaker: `0x${string}`;
   orderTraits: string;
   orderData: `0x${string}`;
+  maxDiscountBps: number;
+  fullDeviation: number;
+  targetHealthFactor: number;
 };
 
 export const AAVE_POOL = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2" as const;
@@ -45,6 +48,7 @@ export const abis = {
     "function healthFactor() view returns (uint256)",
     "function targetHealthFactor() view returns (uint256)",
     "function fairAmountOut(address tokenIn, address tokenOut, uint256 amountIn) view returns (uint256)",
+    "function deviationAfter(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut) view returns (uint256)",
   ]),
   pool: parseAbi([
     "function getUserAccountData(address user) view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor)",
