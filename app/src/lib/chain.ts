@@ -55,6 +55,11 @@ export const abis = {
     "function ship(Order order, uint256 collateralLimit) returns (bytes32)",
   ]),
   aqua: parseAbi(["event Shipped(address maker, address app, bytes32 strategyHash, bytes strategy)"]),
+  aquaMoves: parseAbi([
+    "event Pushed(address maker, address app, bytes32 strategyHash, address token, uint256 amount)",
+    "event Pulled(address maker, address app, bytes32 strategyHash, address token, uint256 amount)",
+  ]),
+  oracleEvents: parseAbi(["event PriceSet(address indexed asset, uint256 price)"]),
   pool: parseAbi([
     "function getUserAccountData(address user) view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor)",
   ]),
