@@ -1,6 +1,6 @@
 import type { CrashProgress, Fill, TargetQuote, TrimState } from "../lib/useTrim";
 import { useState } from "react";
-import type { Activity, ActivityKind } from "../lib/useTrim";
+import type { Activity, ActivityKind, BotDecision } from "../lib/useTrim";
 import { ownerTotals } from "../lib/bot";
 import { curveDiscount, formatHealthFactor, formatToken, healthStatus, keeperLeak, loanToValue, ltvAtHealthFactor, type CurveParams } from "../lib/trim";
 import { hf, percent, TxLink, usdc, wethInUsdc } from "./format";
@@ -95,6 +95,7 @@ function OfferCard({ state, curve, targetQuote, busy, movePrice, resetPrice, fil
             <span>Step {crash.step} / {crash.steps} · ETH {dollars(crash.price)} · bot filled {crash.fills}×</span>
             <button className="small" onClick={stopCrash}>Stop</button>
           </div>
+          {crash.decision && <DecisionLine decision={crash.decision} />}
         </div>
       ) : (
         <button className="wide" disabled={busy !== null} onClick={crashWithBot}>Slow crash −20%, a bot watching every step</button>
@@ -128,6 +129,53 @@ function CostCard({ fills, explorerUrl }: { fills: Fill[]; explorerUrl: string |
             <div><span>Latest</span><strong>{explorerUrl ? <a href={`${explorerUrl}/tx/${fills[0].hash}`} target="_blank" rel="noreferrer">View transaction ↗</a> : <TxLink hash={fills[0].hash} explorerUrl={null} />}</strong></div>
           </div>
         </>
+      )}
+    </section>
+  );
+}
+
+function money2(v: number): string {
+  return "$" + v.toFixed(2);
+}
+
+function DecisionLine({ decision }: { decision: BotDecision }) {
+  if (decision.action === "none") return <p className="decision muted">Bot: nothing to fill, the position is at target.</p>;
+  const fills = decision.action === "fill";
+  return (
+    <p className={`decision ${fills ? "good" : "warn"}`}>
+      Bot {fills ? "fills" : "waits"}: earns {money2(decision.discountUsdc)} {fills ? "≥" : "<"} its cost {money2(decision.costUsdc)} (gas + selling)
+    </p>
+  );
+}
+
+function BotLogCard({ log }: { log: (BotDecision & { step: number })[] }) {
+  return (
+    <section className="card simple botlog">
+      <h2>What the bot decided at each step</h2>
+      {log.length === 0 ? (
+        <p className="muted small">Run "Slow crash" to see the bot weigh every step: it fills only when the discount it earns beats its gas and selling cost.</p>
+      ) : (
+        <table className="tx-table">
+          <thead>
+            <tr><th>Step</th><th>ETH</th><th>Best fill</th><th>Bot earns</th><th>Bot's cost</th><th>Decision</th></tr>
+          </thead>
+          <tbody>
+            {[...log].reverse().map((d) => (
+              <tr key={d.step}>
+                <td>{d.step}</td>
+                <td>{dollars(d.price)}</td>
+                <td>{d.size ? `${d.size.toLocaleString("en-US")} USDC` : "none"}</td>
+                <td>{d.size ? money2(d.discountUsdc) : "·"}</td>
+                <td>{d.size ? money2(d.costUsdc) : "·"}</td>
+                <td>
+                  <span className={`chip ${d.action === "fill" ? "kind-bot" : d.action === "wait" ? "kind-wait" : "kind-oracle"}`}>
+                    {d.action === "fill" ? "Fills" : d.action === "wait" ? "Waits" : "No offer"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </section>
   );
@@ -180,8 +228,9 @@ function TransactionsCard({ activity, explorerUrl }: { activity: Activity[]; exp
   );
 }
 
-export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, movePrice, resetPrice, fillToTarget, crashWithBot, showDetails, activity, crash, stopCrash, openPrice }: {
+export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, movePrice, resetPrice, fillToTarget, crashWithBot, showDetails, activity, botLog, crash, stopCrash, openPrice }: {
   activity: Activity[];
+  botLog: (BotDecision & { step: number })[];
   crash: CrashProgress | null;
   stopCrash: () => void;
   openPrice: number;
@@ -204,7 +253,10 @@ export function Simple({ state, curve, fills, targetQuote, busy, explorerUrl, mo
         <OfferCard state={state} curve={curve} targetQuote={targetQuote} busy={busy} movePrice={movePrice} resetPrice={resetPrice} fillToTarget={fillToTarget} crashWithBot={crashWithBot} crash={crash} stopCrash={stopCrash} openPrice={openPrice} />
         <CostCard fills={fills} explorerUrl={explorerUrl} />
       </div>
-      <TransactionsCard activity={activity} explorerUrl={explorerUrl} />
+      <div className="board lists">
+        <BotLogCard log={botLog} />
+        <TransactionsCard activity={activity} explorerUrl={explorerUrl} />
+      </div>
       <p className="how">
         How: the discount is priced by <strong>TrimSkew</strong>, one new SwapVM instruction, and the swap settles through the official 1inch Aqua on a mainnet
         fork. <a href="/docs/how-it-works" target="_blank" rel="noreferrer">How it works</a> ·{" "}

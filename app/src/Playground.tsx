@@ -59,6 +59,7 @@ export function Playground() {
           crashWithBot={() => trim.slowCrash(20, 20, true)}
           showDetails={toggleDetails}
           activity={activity}
+          botLog={trim.botLog}
           crash={trim.crash}
           stopCrash={trim.stopSlowCrash}
           openPrice={session ? Number(session.openPrice) / 1e8 : Number(state.ethPrice) / 1e8}
