@@ -3,14 +3,18 @@
 ## One fill, left to right
 
 ```
-Filler bot ──fill()──▶ TrimSwapVMRouter  (official SwapVM + one instruction, 0xb6)
-                          │  runs the order's program: TrimSkew(vault, maxDiscount, fullDeviation)
-                          │  TrimSkew asks the vault: deviation(), fairAmountOut(), deviationAfter()
-                          │  price = fair amount ÷ (1 − average discount)
-                          ▼
-                     official Aqua (0x4999…6d31)
-   Aqua.push   USDC  filler ──▶ vault      vault.postTransferIn   repays the Aave debt
-   Aqua.pull   WETH  vault  ──▶ filler     vault.preTransferOut   withdraws it from Aave first
+Filler bot
+   │ fill()
+   ▼
+TrimSwapVMRouter      official SwapVM + opcode 0xb6
+   │ runs TrimSkew(vault, maxDiscount, fullDeviation)
+   │ asks the vault: deviation(), fairAmountOut(),
+   │                 deviationAfter()
+   │ price = fair ÷ (1 − average discount)
+   ▼
+official Aqua 0x4999…6d31
+   push USDC  filler → vault    postTransferIn: repay Aave
+   pull WETH  vault → filler    preTransferOut: withdraw
 ```
 
 All of it is one transaction. The collateral never sits idle in the vault: it stays supplied on Aave, and Aqua only holds a *virtual* 10 WETH balance for the strategy. The hook withdraws exactly what a fill takes, just in time. That is Aqua's shared-liquidity idea applied to a leveraged position.
