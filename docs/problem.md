@@ -26,7 +26,7 @@ The median decomposes into a 0.25% service fee, 0.10% gas billed to the user and
 
 ![Median cost per rebalance by size](/charts/leak-by-size.svg)
 
-The green bars remove only the operator: the same swap at the same pool, with the gas the keeper actually paid. For rebalances between \$1k and \$1M that alone saves about 0.3 points. Below \$1k gas is 3% of the trade and nobody wins on mainnet.
+The grey bars remove only the operator: the same swap at the same pool, with the gas the keeper actually paid. For rebalances between \$1k and \$1M that alone saves about 0.3 points. Below \$1k gas is 3% of the trade and nobody wins on mainnet.
 
 ## Large rebalances dump on themselves
 

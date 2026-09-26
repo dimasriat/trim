@@ -54,13 +54,16 @@ def leak_by_size():
         trim.append(statistics.median([l - m for l, m in zip(leak, room)]) * 100)
     fig, ax = plt.subplots(figsize=(6.4, 4.2))
     x = range(len(labels))
-    ax.bar([i - 0.2 for i in x], keeper, 0.4, color=KEEPER, label="Keeper today (DeFi Saver)")
-    ax.bar([i + 0.2 for i in x], trim, 0.4, color=TRIM, label="Same trade without operator")
+    ax.bar([i - 0.2 for i in x], [min(k, 1.2) for k in keeper], 0.4, color=KEEPER, label="Keeper today (DeFi Saver)")
+    ax.bar([i + 0.2 for i in x], [min(t, 1.2) for t in trim], 0.4, color=MUTED, label="Same trade minus service fee and gas markup")
+    for i, (k, t) in enumerate(zip(keeper, trim)):
+        ax.text(i - 0.2, min(k, 1.2) + 0.03, f"{k:.2f}" + ("↑" if k > 1.2 else ""), fontsize=8, ha="center", color=INK)
+        ax.text(i + 0.2, min(t, 1.2) + 0.03, f"{t:.2f}" + ("↑" if t > 1.2 else ""), fontsize=8, ha="center", color=MUTED)
     ax.set_xticks(list(x), labels, fontsize=9)
     ax.set_ylabel("Median cost per rebalance (%)")
-    ax.set_ylim(0, 1.2)
-    ax.text(0, 1.22, f"{keeper[0]:.1f}% / {trim[0]:.1f}%, gas alone", fontsize=8, color=MUTED, ha="center", clip_on=False)
-    ax.legend(frameon=False, fontsize=9, loc="upper center")
+    ax.set_ylim(0, 1.6)
+    ax.set_title("DeFi Saver on Aave v3, 919 rebalances. Bars above 1.2% are cut.", fontsize=9, color=MUTED, loc="left")
+    ax.legend(frameon=False, fontsize=9, loc="upper right")
     save(fig, "leak-by-size")
 
 
@@ -80,9 +83,9 @@ def dump_recovery():
 
 def morpho_bonus():
     fig, ax = plt.subplots(figsize=(6.4, 3.6))
-    for name, color, label in [("morpho_preliq_eth.csv", ACCENT, "Ethereum"), ("morpho_preliq_base.csv", KEEPER, "Base")]:
+    for name, color, label in [("morpho_preliq_eth.csv", ACCENT, "Ethereum"), ("morpho_preliq_base.csv", MUTED, "Base")]:
         bonus = [(float(r["lif_realized"]) - 1) * 100 for r in rows(name) if float(r["lif_realized"]) > 0]
-        ax.hist(bonus, bins=[i / 4 for i in range(0, 53)], alpha=0.75, color=color, label=f"{label}, n={len(bonus)}")
+        ax.hist(bonus, bins=[i / 4 for i in range(0, 53)], histtype="step", linewidth=1.8, color=color, label=f"{label}, n={len(bonus)}")
     ax.set_xlabel("Bonus paid to the pre-liquidator (%)")
     ax.set_ylabel("Pre-liquidations")
     ax.legend(frameon=False, fontsize=9)
@@ -94,14 +97,20 @@ def discount(deviation, max_bps=100, full=0.2):
 
 
 def trimskew_curve():
-    target = 1.5
-    hf = [1.0 + i / 200 for i in range(0, 121)]
+    target, threshold = 1.5, 0.83
+    hf = [0.95 + i / 200 for i in range(0, 111)]
     fig, ax = plt.subplots(figsize=(6.4, 3.6))
     ax.plot(hf, [discount(max(0.0, (target - h) / target)) / 100 for h in hf], color=TRIM, linewidth=2)
     ax.axvline(target, color=MUTED, linestyle="--", linewidth=1)
-    ax.annotate("target", (target, 0.92), fontsize=9, color=MUTED, ha="right")
-    ax.set_xlabel("Health factor")
+    ax.axvline(1.0, color=KEEPER, linestyle=":", linewidth=1)
+    ax.annotate("target", (target - 0.01, 1.03), fontsize=9, color=MUTED, ha="right")
+    ax.annotate("liquidation", (1.0 + 0.01, 1.03), fontsize=9, color=KEEPER, ha="left")
+    ax.set_xlim(target + 0.02, 0.95)
+    ax.set_ylim(0, 1.1)
+    ax.set_xlabel("Health factor (falls to the right)")
     ax.set_ylabel("Discount below oracle (%)")
+    ltv = ax.secondary_xaxis("top", functions=(lambda h: threshold / h * 100, lambda l: threshold * 100 / l))
+    ltv.set_xlabel("LTV (%), liquidation threshold 83%", fontsize=9, color=MUTED)
     save(fig, "trimskew-curve")
 
 
@@ -126,6 +135,7 @@ def marginal():
     ax.plot(sizes, averages, color=TRIM, linewidth=2, label="Average discount the fill gets")
     ax.set_xlabel("Fill size (USDC), position at HF 1.30")
     ax.set_ylabel("Discount below oracle (%)")
+    ax.set_ylim(0, None)
     ax.legend(frameon=False, fontsize=9)
     save(fig, "marginal")
 
