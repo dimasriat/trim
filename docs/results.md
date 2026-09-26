@@ -2,7 +2,7 @@
 
 ## Tests
 
-24 Foundry tests, four suites, three of them on an Ethereum mainnet fork at block 26,050,000 against the real Aave v3 pool:
+24 Foundry tests, four suites, three of them on an Ethereum mainnet fork at block 26,050,000 against the real Aave v3 pool and the official Aqua deployment:
 
 | Suite | What it shows |
 |---|---|
@@ -20,7 +20,7 @@ One fill (repay Aave, withdraw collateral, Aqua transfers) costs **556,051 gas**
 
 ## End-to-end demo
 
-`contracts/script/demo-up.sh` starts an anvil fork, swaps the Aave oracle for a settable one seeded with the real prices (`anvil_setCode`), deploys everything and opens a 10 WETH position at health factor 1.60 with a 1.50 target. The app in `app/` gives three roles three wallets: the market moves the ETH price, the owner holds the position, the filler runs `TrimFiller`.
+`contracts/script/demo-up.sh` starts an anvil fork, swaps the Aave oracle for a settable one seeded with the real prices (`anvil_setCode`), deploys the Trim router, vault and filler against the official Aqua already on mainnet (`0x499943E74FB0cE105688beeE8Ef2ABec5D936d31`), and opens a 10 WETH position at health factor 1.60 with a 1.50 target. The app in `app/` gives three roles three wallets: the market moves the ETH price, the owner holds the position, the filler runs `TrimFiller`.
 
 The curve is set at production scale: at most 1% below the oracle, reached 20% below the target health factor. The app shows each number in WETH and USDC, and after every fill who got what.
 
