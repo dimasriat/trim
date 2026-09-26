@@ -25,7 +25,7 @@ function callAllowed(call: Call, mode: RpcMode, forkBlock: bigint): boolean {
   const { method, params } = call;
   if (typeof method !== "string" || BLOCKED.has(method)) return false;
   if (mode === "read" && WRITES.has(method)) return false;
-  const prefixes = mode === "read" ? /^(eth|net|web3|ots)_/ : /^(eth|net|web3)_/;
+  const prefixes = mode === "read" ? /^(eth|net|web3|ots|erigon)_/ : /^(eth|net|web3)_/;
   if (!prefixes.test(method)) return false;
   if (LOG_QUERIES.has(method)) return logQueryInsideFork(params, forkBlock);
   return true;

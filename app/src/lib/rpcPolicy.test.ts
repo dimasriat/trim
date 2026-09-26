@@ -19,6 +19,8 @@ describe("requestAllowed", () => {
 
   test("gives the explorer otterscan methods but no way to write", () => {
     expect(requestAllowed(call("ots_getApiLevel"), "read", FORK)).toBe(true);
+    expect(requestAllowed(call("erigon_getHeaderByNumber", ["latest"]), "read", FORK)).toBe(true);
+    expect(requestAllowed(call("erigon_getHeaderByNumber", ["latest"]), "write", FORK)).toBe(false);
     expect(requestAllowed(call("ots_getApiLevel"), "write", FORK)).toBe(false);
     expect(requestAllowed(call("eth_sendRawTransaction"), "read", FORK)).toBe(false);
   });
