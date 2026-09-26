@@ -15,7 +15,7 @@ const credentials = process.env.DEMO_USER && process.env.DEMO_PASS
   : null;
 
 const rpcLimiter = new RateLimiter(Number(process.env.RPC_BURST ?? 120), Number(process.env.RPC_PER_SECOND ?? 30));
-const resetLimiter = new RateLimiter(1, 1 / 15);
+const resetLimiter = new RateLimiter(1, 1 / Number(process.env.RESET_MIN_SECONDS ?? 15));
 const corsHeaders = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "POST, OPTIONS",
