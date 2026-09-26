@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { AutoBot, Fill, TrimState } from "../lib/useTrim";
 import { accounts } from "../lib/chain";
 import { botTotals } from "../lib/bot";
-import { curveDiscount, fillLedger, formatHealthFactor, formatToken, keeperLeak, ltvAtHealthFactor } from "../lib/trim";
+import { curveDiscount, fillLedger, formatHealthFactor, formatToken, ltvAtHealthFactor } from "../lib/trim";
 import { ethInUsdc, hf, percent, short, signedUsdc, TxLink, usdc, wethInUsdc } from "./format";
 
 export function Bot({ state, busy, autoBot, setAutoBot, fill, fillToTarget, runBotNow }: {
@@ -69,7 +69,6 @@ export function BotPnl({ state, fills }: { state: TrimState; fills: Fill[] }) {
 
 export function Ledger({ fill, liquidationThresholdBps, explorerUrl }: { fill: Fill; liquidationThresholdBps: number; explorerUrl: string | null }) {
   const ledger = fillLedger(fill);
-  const keeper = keeperLeak(ledger.debtRepaidUsdc);
   const start = fill.curve ? curveDiscount(hf(fill.hfBefore), fill.curve) : 0;
   const end = fill.curve ? curveDiscount(hf(fill.hfAfter), fill.curve) : 0;
   const edge = ledger.positionCostUsdc - fill.gasUsdc;
@@ -85,7 +84,6 @@ export function Ledger({ fill, liquidationThresholdBps, explorerUrl }: { fill: F
           <div>Gave {formatToken(fill.amountOut, 18, 4)} WETH ≈ {usdc(ledger.collateralOutUsdc)}</div>
           <div>Debt down {usdc(ledger.debtRepaidUsdc)}</div>
           <div className="net">Paid {usdc(ledger.positionCostUsdc)} ({percent(ledger.positionCostShare)})</div>
-          <div className="muted">Keeper: {usdc(ledger.debtRepaidUsdc * keeper)} ({percent(keeper)})</div>
         </div>
         <div className="party">
           <div className="who">Bot</div>
