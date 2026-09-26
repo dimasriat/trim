@@ -201,8 +201,8 @@ function Ledger({ fill, curve, liquidationThresholdBps, explorerUrl }: { fill: F
   const keeper = keeperLeak(ledger.debtRepaidUsdc);
   const ltvBefore = ltvAtHealthFactor(hf(fill.hfBefore), liquidationThresholdBps);
   const ltvAfter = ltvAtHealthFactor(hf(fill.hfAfter), liquidationThresholdBps);
-  const start = curveDiscount(hf(fill.hfBefore), curve);
-  const end = curveDiscount(hf(fill.hfAfter), curve);
+  const start = curveDiscount(hf(fill.hfBefore), fill.curve ?? curve);
+  const end = curveDiscount(hf(fill.hfAfter), fill.curve ?? curve);
   return (
     <div className="ledger">
       <h3>Who got what in the last fill</h3>

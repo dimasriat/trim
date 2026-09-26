@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { decodeAbiParameters } from "viem";
 import { AAVE_POOL, abis, accounts, loadDeployments, orderOf, publicClient, wallets, type Deployments, type Order } from "./chain";
-import { withCurve } from "./order";
+import { curveFromOrderData, withCurve } from "./order";
+import type { CurveParams } from "./trim";
 import { fillSteps } from "./events";
 
 export const FILL_SIZES = [500_000_000n, 2_000_000_000n, 5_000_000_000n];
@@ -35,6 +36,7 @@ export type Fill = {
   ethPrice: bigint;
   usdcPrice: bigint;
   steps: string[];
+  curve: CurveParams | null;
 };
 
 export type Activity = { hash: `0x${string}`; label: string; signer: `0x${string}` };
@@ -218,6 +220,12 @@ export function useTrim() {
         gasPrice: receipt.effectiveGasPrice,
         ethPrice,
         usdcPrice,
+        curve: (() => {
+          const shipped = curveFromOrderData(order.data);
+          return shipped
+            ? { maxDiscountBps: shipped.maxDiscountBps, fullDeviation: Number(shipped.fullDeviation) / 1e18, target: deployments.targetHealthFactor / 1e18 }
+            : null;
+        })(),
         steps: fillSteps(receipt.logs, { aqua: deployments.aqua, pool: AAVE_POOL, usdc: deployments.usdc, weth: deployments.weth }),
       },
       ...previous,
