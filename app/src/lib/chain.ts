@@ -2,6 +2,7 @@ import { createPublicClient, createWalletClient, defineChain, http, parseAbi } f
 import { mnemonicToAccount } from "viem/accounts";
 
 export type Deployments = {
+  aqua: `0x${string}`;
   vault: `0x${string}`;
   filler: `0x${string}`;
   oracle: `0x${string}`;

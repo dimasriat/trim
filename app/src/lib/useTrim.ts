@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AAVE_POOL, abis, accounts, loadDeployments, orderOf, publicClient, wallets, type Deployments } from "./chain";
+import { fillSteps } from "./events";
 
 export const FILL_SIZES = [500_000_000n, 2_000_000_000n, 5_000_000_000n];
 
@@ -29,7 +30,17 @@ export type Fill = {
   gasPrice: bigint;
   ethPrice: bigint;
   usdcPrice: bigint;
+  steps: string[];
 };
+
+export type Activity = { hash: `0x${string}`; label: string; signer: `0x${string}` };
+
+export type DemoConfig = { explorerUrl: string | null; epoch: number; resetEveryMinutes: number; nextResetAt: number | null };
+
+async function loadDemoConfig(): Promise<DemoConfig> {
+  const response = await fetch("/demo.json");
+  return response.json();
+}
 
 async function readQuote(d: Deployments, amountIn: bigint): Promise<Quote> {
   try {
@@ -88,13 +99,22 @@ export function useTrim() {
   const [deployments, setDeployments] = useState<Deployments | null>(null);
   const [state, setState] = useState<TrimState | null>(null);
   const [fills, setFills] = useState<Fill[]>([]);
+  const [activity, setActivity] = useState<Activity[]>([]);
+  const [demo, setDemo] = useState<DemoConfig | null>(null);
+  const epoch = useRef<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const openPrice = useRef<bigint | null>(null);
 
   const refresh = useCallback(async () => {
     if (!deployments) return;
-    const next = await readState(deployments);
+    const [next, config] = await Promise.all([readState(deployments), loadDemoConfig()]);
+    if (epoch.current !== null && config.epoch !== epoch.current) {
+      setFills([]);
+      setActivity([]);
+    }
+    epoch.current = config.epoch;
+    setDemo(config);
     if (openPrice.current === null) openPrice.current = next.ethPrice;
     setState(next);
   }, [deployments]);
@@ -131,6 +151,7 @@ export function useTrim() {
       args: [deployments.weth, price],
     });
     await publicClient.waitForTransactionReceipt({ hash });
+    setActivity((previous) => [{ hash, label: `Oracle set ETH to ${(Number(price) / 1e8).toFixed(2)} USD`, signer: accounts.market.address }, ...previous]);
   }), [deployments, run]);
 
   const movePrice = useCallback((percent: number) => {
@@ -159,6 +180,7 @@ export function useTrim() {
       publicClient.readContract({ address: deployments.oracle, abi: abis.oracle, functionName: "getAssetPrice", args: [deployments.weth] }),
       publicClient.readContract({ address: deployments.oracle, abi: abis.oracle, functionName: "getAssetPrice", args: [deployments.usdc] }),
     ]);
+    setActivity((previous) => [{ hash, label: `Filler paid ${Number(amountIn) / 1e6} USDC`, signer: accounts.filler.address }, ...previous]);
     setFills((previous) => [
       {
         hash,
@@ -171,10 +193,18 @@ export function useTrim() {
         gasPrice: receipt.effectiveGasPrice,
         ethPrice,
         usdcPrice,
+        steps: fillSteps(receipt.logs, { aqua: deployments.aqua, pool: AAVE_POOL, usdc: deployments.usdc, weth: deployments.weth }),
       },
       ...previous,
     ]);
   }), [deployments, run]);
 
-  return { deployments, state, fills, busy, error, movePrice, resetPrice, fill, openPrice: openPrice.current };
+  const resetDemo = useCallback(() => run("reset", async () => {
+    const response = await fetch("/reset", { method: "POST" });
+    if (!response.ok) throw new Error(await response.text());
+    setFills([]);
+    setActivity([]);
+  }), [run]);
+
+  return { deployments, state, fills, activity, demo, busy, error, movePrice, resetPrice, resetDemo, fill, openPrice: openPrice.current };
 }

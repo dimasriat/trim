@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { FILL_SIZES, useTrim, type Fill, type Quote, type TrimState } from "./lib/useTrim";
+import { FILL_SIZES, useTrim, type Activity, type DemoConfig, type Fill, type Quote, type TrimState } from "./lib/useTrim";
+import { accounts } from "./lib/chain";
 import {
   curveDiscount,
   fillLedger,
@@ -24,11 +25,24 @@ function hf(value: bigint): number {
   return Number(value) / 1e18;
 }
 
+function short(address: string): string {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function TxLink({ hash, explorerUrl }: { hash: string; explorerUrl: string | null }) {
+  const text = `${hash.slice(0, 10)}…${hash.slice(-6)}`;
+  return explorerUrl ? <a className="hash" href={`${explorerUrl}/tx/${hash}`} target="_blank" rel="noreferrer">{text}</a> : <code className="hash">{text}</code>;
+}
+
+function AddressLink({ address, explorerUrl }: { address: string; explorerUrl: string | null }) {
+  return explorerUrl ? <a className="hash" href={`${explorerUrl}/address/${address}`} target="_blank" rel="noreferrer">{short(address)}</a> : <code className="hash">{short(address)}</code>;
+}
+
 function wethInUsdc(weth: bigint, ethPrice: bigint, usdcPrice: bigint): number {
   return (Number(weth) / 1e18) * (Number(ethPrice) / Number(usdcPrice));
 }
 
-function Position({ state, curve }: { state: TrimState; curve: CurveParams }) {
+function Position({ state, curve, vault, explorerUrl }: { state: TrimState; curve: CurveParams; vault: string; explorerUrl: string | null }) {
   const status = healthStatus(state.healthFactor, state.target);
   const ltv = loanToValue(state.collateralBase, state.debtBase);
   const targetLtv = ltvAtHealthFactor(curve.target, state.liquidationThresholdBps);
@@ -64,6 +78,8 @@ function Position({ state, curve }: { state: TrimState; curve: CurveParams }) {
         <dd>{usdc(Number(state.debtBase) / Number(state.usdcPrice), 0)}</dd>
         <dt>LTV</dt>
         <dd className="muted">debt / collateral</dd>
+        <dt>Vault</dt>
+        <dd><AddressLink address={vault} explorerUrl={explorerUrl} /> <span className="muted">owner {short(accounts.owner.address)}</span></dd>
       </dl>
     </section>
   );
@@ -88,8 +104,9 @@ function Market({ state, busy, movePrice, resetPrice }: {
             ETH {change > 0 ? "+" : ""}{change}%
           </button>
         ))}
-        <button disabled={busy !== null} onClick={resetPrice}>Reset</button>
+        <button disabled={busy !== null} onClick={resetPrice}>Reset price</button>
       </div>
+      <p className="muted role">Signed by the market wallet {short(accounts.market.address)}, which owns the demo oracle.</p>
     </section>
   );
 }
@@ -176,7 +193,7 @@ function Offers({ state, selected, select }: { state: TrimState; selected: numbe
   );
 }
 
-function Ledger({ fill, curve, liquidationThresholdBps }: { fill: Fill; curve: CurveParams; liquidationThresholdBps: number }) {
+function Ledger({ fill, curve, liquidationThresholdBps, explorerUrl }: { fill: Fill; curve: CurveParams; liquidationThresholdBps: number; explorerUrl: string | null }) {
   const ledger = fillLedger(fill);
   const gasUsdc = wethInUsdc(fill.gasUsed * fill.gasPrice, fill.ethPrice, fill.usdcPrice);
   const collateralOut = formatToken(fill.amountOut, 18, 4) + " WETH";
@@ -188,6 +205,12 @@ function Ledger({ fill, curve, liquidationThresholdBps }: { fill: Fill; curve: C
   return (
     <div className="ledger">
       <h3>Who got what in the last fill</h3>
+      <div className="party">
+        <div className="who">One transaction <TxLink hash={fill.hash} explorerUrl={explorerUrl} /></div>
+        <ol className="steps">
+          {fill.steps.map((step, i) => <li key={i}>{step}</li>)}
+        </ol>
+      </div>
       <div className="party">
         <div className="who">Position</div>
         <div>Gave {collateralOut} <span className="muted">≈ {usdc(ledger.collateralOutUsdc)}</span></div>
@@ -217,7 +240,8 @@ function Ledger({ fill, curve, liquidationThresholdBps }: { fill: Fill; curve: C
   );
 }
 
-function Filler({ state, busy, fills, fill, curve }: {
+function Filler({ state, busy, fills, fill, curve, explorerUrl }: {
+  explorerUrl: string | null;
   state: TrimState;
   busy: string | null;
   fills: Fill[];
@@ -235,10 +259,10 @@ function Filler({ state, busy, fills, fill, curve }: {
         ))}
       </div>
       <p className="muted">
-        Holds {formatToken(state.fillerUsdc, 6, 0)} USDC and {formatToken(state.fillerWeth, 18, 4)} WETH. It can only
+        Operator {short(accounts.filler.address)} runs <code>TrimFiller</code>. Holds {formatToken(state.fillerUsdc, 6, 0)} USDC and {formatToken(state.fillerWeth, 18, 4)} WETH. It can only
         swap at the curve's price; it has no permission over the owner's wallet.
       </p>
-      {fills[0] && <Ledger fill={fills[0]} curve={curve} liquidationThresholdBps={state.liquidationThresholdBps} />}
+      {fills[0] && <Ledger fill={fills[0]} curve={curve} liquidationThresholdBps={state.liquidationThresholdBps} explorerUrl={explorerUrl} />}
       {fills.length > 1 && (
         <ul className="log">
           {fills.slice(1).map((f) => {
@@ -255,8 +279,39 @@ function Filler({ state, busy, fills, fill, curve }: {
   );
 }
 
+function ActivityLog({ activity, explorerUrl }: { activity: Activity[]; explorerUrl: string | null }) {
+  if (activity.length === 0) return null;
+  return (
+    <section className="card">
+      <h2>Transactions</h2>
+      <ul className="activity">
+        {activity.map((item) => (
+          <li key={item.hash}>
+            <span>{item.label}</span>
+            <span className="muted">{short(item.signer)} · <TxLink hash={item.hash} explorerUrl={explorerUrl} /></span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function DemoBar({ demo, busy, resetDemo }: { demo: DemoConfig | null; busy: string | null; resetDemo: () => void }) {
+  const minutesLeft = demo?.nextResetAt ? Math.max(0, Math.ceil((demo.nextResetAt - Date.now()) / 60_000)) : null;
+  return (
+    <div className="demobar">
+      <span className="muted">
+        Mainnet fork, public test keys.{minutesLeft !== null && ` Resets itself in ${minutesLeft} min.`}
+        {demo?.explorerUrl && <> <a href={demo.explorerUrl} target="_blank" rel="noreferrer">Explorer</a></>}
+      </span>
+      <button disabled={busy !== null} onClick={resetDemo}>Reset demo</button>
+    </div>
+  );
+}
+
 export function App() {
-  const { deployments, state, fills, busy, error, movePrice, resetPrice, fill } = useTrim();
+  const { deployments, state, fills, activity, demo, busy, error, movePrice, resetPrice, resetDemo, fill } = useTrim();
+  const explorerUrl = demo?.explorerUrl ?? null;
   const [picked, setPicked] = useState(1);
   const curve: CurveParams | null = deployments
     ? {
@@ -271,6 +326,7 @@ export function App() {
         <h1>Trim</h1>
         <p>A leveraged Aave position that auctions its own rebalance. No keeper: bots compete on price.</p>
       </header>
+      <DemoBar demo={demo} busy={busy} resetDemo={resetDemo} />
       {error && <p className="error">{error}</p>}
       {!state || !curve ? (
         <p className="muted">Connecting to the fork…</p>
@@ -278,17 +334,17 @@ export function App() {
         const selected = state.quotes[picked] ? picked : Math.max(0, state.quotes.findLastIndex((quote) => quote !== null));
         return (
         <>
-          <Position state={state} curve={curve} />
+          <Position state={state} curve={curve} vault={deployments!.vault} explorerUrl={explorerUrl} />
           <Market state={state} busy={busy} movePrice={movePrice} resetPrice={resetPrice} />
           <Curve state={state} curve={curve} quote={state.quotes[selected]} />
           <Offers state={state} selected={selected} select={setPicked} />
-          <Filler state={state} busy={busy} fills={fills} fill={fill} curve={curve} />
+          <Filler state={state} busy={busy} fills={fills} fill={fill} curve={curve} explorerUrl={explorerUrl} />
+          <ActivityLog activity={activity} explorerUrl={explorerUrl} />
         </>
         );
       })()}
       <footer className="muted">
         Keepers today: DeFi Saver leaks 0.48% median per rebalance on Aave v3 over twelve months, 0.56% between $1k and $10k.
-        Demo on a local mainnet fork with public test keys.
       </footer>
     </main>
   );
