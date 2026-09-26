@@ -155,3 +155,19 @@ input.number.tiny { flex: 0 0 64px; width: 64px; min-height: 30px; margin: 0 4px
   .offers { gap: 6px; }
   .offer { padding: 6px 10px; }
 }
+
+.card.simple h2 { font-size: 13px; }
+.card.simple { padding: 16px 20px; display: grid; gap: 10px; align-content: start; }
+.card.simple .big { font-size: 34px; }
+.lead { margin: 0; font-size: 16px; line-height: 1.5; }
+.offer-box { display: grid; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--bg); border: 1px solid var(--good); }
+button.wide { width: 100%; }
+.cost-rows { display: grid; gap: 8px; }
+.cost-rows div { display: flex; justify-content: space-between; align-items: baseline; font-size: 16px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.cost-rows strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.how { margin: 12px 0 0; font-size: 14px; color: var(--muted); }
+button.link { border: 0; background: none; padding: 0; min-height: 0; color: var(--accent); text-decoration: underline; font-size: inherit; font-weight: 400; }
+.busy { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 10; padding: 8px 14px; border-radius: 999px; background: var(--text); color: var(--bg) !important; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+@media (min-width: 1100px) {
+  .board:has(> .card.simple) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

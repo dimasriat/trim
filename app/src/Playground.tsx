@@ -6,12 +6,31 @@ import { CurveSettings, OwnerPnl, Position } from "./ui/OwnerColumn";
 import { Curve, Market, Offers } from "./ui/MarketColumn";
 import { Bot, BotPnl, Ledger } from "./ui/BotColumn";
 import { ActivityLog, Questions, TopBar } from "./ui/Info";
+import { Simple } from "./ui/Simple";
+
+const MODE_KEY = "trim-detailed";
+
+function readDetailed(): boolean {
+  try {
+    return localStorage.getItem(MODE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export function Playground() {
   const trim = useTrim();
   const { deployments, state, session, fills, activity, demo, busy, error } = trim;
   const explorerUrl = demo?.explorerUrl ?? null;
   const [picked, setPicked] = useState(1);
+  const [detailed, setDetailed] = useState(readDetailed);
+  const toggleDetails = () => {
+    const next = !detailed;
+    setDetailed(next);
+    try {
+      localStorage.setItem(MODE_KEY, next ? "1" : "0");
+    } catch {}
+  };
   const shippedCurve = state ? curveFromOrderData(state.order.data) : null;
   const curve: CurveParams | null = deployments && shippedCurve
     ? { maxDiscountBps: shippedCurve.maxDiscountBps, fullDeviation: Number(shippedCurve.fullDeviation) / 1e18, target: Number(deployments.targetHealthFactor) / 1e18 }
@@ -21,11 +40,25 @@ export function Playground() {
   useEffect(() => setDraft(curve), [curveKey]);
   return (
     <main>
-      <TopBar demo={demo} busy={busy} resetDemo={trim.resetDemo} />
+      <TopBar demo={demo} busy={busy} resetDemo={trim.resetDemo} detailed={detailed} toggleDetails={toggleDetails} />
       {busy && <p className="busy">Working: {busy}…</p>}
       {error && <p className="error">{error}</p>}
       {!state || !curve || !draft ? (
         <p className="muted">Connecting to the fork…</p>
+      ) : !detailed ? (
+        <Simple
+          state={state}
+          curve={curve}
+          fills={fills}
+          targetQuote={trim.targetQuote}
+          busy={busy}
+          explorerUrl={explorerUrl}
+          movePrice={trim.movePrice}
+          resetPrice={trim.resetPrice}
+          fillToTarget={trim.fillToTarget}
+          crashWithBot={() => trim.slowCrash(20, 20, true)}
+          showDetails={toggleDetails}
+        />
       ) : (() => {
         const selected = state.quotes[picked] ? picked : Math.max(0, state.quotes.findLastIndex((quote) => quote !== null));
         return (

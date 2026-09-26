@@ -49,7 +49,13 @@ export function ActivityLog({ activity, explorerUrl }: { activity: Activity[]; e
   );
 }
 
-export function TopBar({ demo, busy, resetDemo }: { demo: DemoConfig | null; busy: string | null; resetDemo: () => void }) {
+export function TopBar({ demo, busy, resetDemo, detailed, toggleDetails }: {
+  demo: DemoConfig | null;
+  busy: string | null;
+  resetDemo: () => void;
+  detailed: boolean;
+  toggleDetails: () => void;
+}) {
   const minutesLeft = demo?.nextResetAt ? Math.max(0, Math.ceil((demo.nextResetAt - Date.now()) / 60_000)) : null;
   return (
     <div className="top">
@@ -61,7 +67,8 @@ export function TopBar({ demo, busy, resetDemo }: { demo: DemoConfig | null; bus
         <span className="muted">
           Mainnet fork, public test keys.{minutesLeft !== null && ` Resets itself in ${minutesLeft} min.`}
         </span>
-        <a href="/docs/">Docs</a>
+        <button className="small" onClick={toggleDetails}>{detailed ? "Simple view" : "Show details"}</button>
+        <a href="/docs/" target="_blank" rel="noreferrer">Docs</a>
         {demo?.explorerUrl && <a href={demo.explorerUrl} target="_blank" rel="noreferrer">Explorer</a>}
         <button disabled={busy !== null} onClick={resetDemo}>Reset demo</button>
       </div>
