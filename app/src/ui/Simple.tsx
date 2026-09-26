@@ -3,12 +3,16 @@ import { ownerTotals } from "../lib/bot";
 import { curveDiscount, formatHealthFactor, formatToken, healthStatus, keeperLeak, loanToValue, ltvAtHealthFactor, type CurveParams } from "../lib/trim";
 import { hf, percent, TxLink, usdc, wethInUsdc } from "./format";
 
+function dollars(amount: number): string {
+  return "$" + amount.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
 function onTarget(state: TrimState, curve: CurveParams): boolean {
   return (curve.target - hf(state.healthFactor)) / curve.target < 0.0005;
 }
 
 function PositionCard({ state, curve }: { state: TrimState; curve: CurveParams }) {
-  const status = healthStatus(state.healthFactor, state.target);
+  const status = onTarget(state, curve) ? "healthy" : healthStatus(state.healthFactor, state.target);
   const ltv = loanToValue(state.collateralBase, state.debtBase);
   const targetLtv = ltvAtHealthFactor(curve.target, state.liquidationThresholdBps);
   const liquidationLtv = state.liquidationThresholdBps / 10_000;
@@ -28,15 +32,12 @@ function PositionCard({ state, curve }: { state: TrimState; curve: CurveParams }
           <span>liquidation {percent(liquidationLtv, 0)}</span>
         </div>
       </div>
-      <p className="lead">
-        {formatToken(collateralWeth, 18, 2)} WETH deposited, {usdc(Number(state.debtBase) / Number(state.usdcPrice), 0)} borrowed.
-        Health factor {formatHealthFactor(state.healthFactor)}.
-      </p>
-      <p className={`status ${status}`}>
-        {healthy
-          ? "Healthy. Nothing needs to be sold, so there is no offer."
-          : "Too much debt for this price. The position now offers some of its WETH, at a small discount, to anyone who repays part of the debt."}
-      </p>
+      <div className="rows">
+        <div><span>Collateral</span><strong>{formatToken(collateralWeth, 18, 2)} WETH <small>{dollars(Number(state.collateralBase) / 1e8)}</small></strong></div>
+        <div><span>Debt</span><strong>{formatToken(state.debtBase * 10n ** 6n / state.usdcPrice, 6, 0)} USDC <small>{dollars(Number(state.debtBase) / 1e8)}</small></strong></div>
+        <div><span>Health factor</span><strong>{formatHealthFactor(state.healthFactor)} <small>target {curve.target.toFixed(2)} · liquidation 1.00</small></strong></div>
+      </div>
+      <span className={`chip ${status}`}>{healthy ? "Healthy · no offer" : "Below target · offering a discount"}</span>
     </section>
   );
 }
@@ -56,9 +57,8 @@ function OfferCard({ state, curve, targetQuote, busy, movePrice, resetPrice, fil
   return (
     <section className="card simple">
       <h2>2 · The price falls, the position makes an offer</h2>
-      <div className="headline">
-        <span className="big">{formatToken((state.ethPrice * 10n ** 8n) / state.usdcPrice, 8, 2)}</span>
-        <span className="muted">USDC per ETH</span>
+      <div className="rows">
+        <div><span>ETH price (Aave oracle)</span><strong className="price">{dollars(Number(state.ethPrice) / 1e8)}</strong></div>
       </div>
       <div className="buttons">
         <button className="primary" disabled={busy !== null} onClick={() => movePrice(-10)}>ETH −10%</button>
@@ -66,17 +66,15 @@ function OfferCard({ state, curve, targetQuote, busy, movePrice, resetPrice, fil
         <button disabled={busy !== null} onClick={resetPrice}>Start price</button>
       </div>
       {onTarget(state, curve) || !targetQuote ? (
-        <p className="lead">No offer. {onTarget(state, curve) ? "The position is at or above its target." : "Checking the offer…"}</p>
+        <span className="chip muted-chip">{onTarget(state, curve) ? "No offer · position at target" : "Checking the offer…"}</span>
       ) : (
         <div className="offer-box">
-          <p className="lead">
-            Discount right now: <strong>{percent(discount)}</strong> below the oracle price. The further the price falls, the bigger it gets.
-          </p>
-          <p className="lead">
-            To bring the position back to target, a bot pays <strong>{formatToken(targetQuote.amountIn, 6, 0)} USDC</strong> of its debt and gets{" "}
-            <strong>{formatToken(targetQuote.amountOut, 18, 4)} WETH</strong> (≈ {usdc(wethInUsdc(targetQuote.amountOut, state.ethPrice, state.usdcPrice))}),{" "}
-            {percent(average)} below the oracle on average.
-          </p>
+          <div className="rows">
+            <div><span>Discount now</span><strong className="good">{percent(discount)} below oracle</strong></div>
+            <div><span>Bot pays (debt repaid)</span><strong>{formatToken(targetQuote.amountIn, 6, 0)} USDC</strong></div>
+            <div><span>Bot gets</span><strong>{formatToken(targetQuote.amountOut, 18, 4)} WETH <small>{dollars(wethInUsdc(targetQuote.amountOut, state.ethPrice, state.usdcPrice))}</small></strong></div>
+            <div><span>Average discount of this fill</span><strong>{percent(average)}</strong></div>
+          </div>
           <button className="primary wide" disabled={busy !== null} onClick={fillToTarget}>Fill to target, as a bot</button>
         </div>
       )}
@@ -92,10 +90,11 @@ function CostCard({ fills, explorerUrl }: { fills: Fill[]; explorerUrl: string |
     <section className="card simple">
       <h2>3 · What the rebalance cost</h2>
       {fills.length === 0 ? (
-        <p className="lead">
-          Nothing rebalanced yet. Today a keeper such as DeFi Saver does this and takes about <strong>0.56%</strong> each time (median of 919 real
-          rebalances on Aave).
-        </p>
+        <div className="cost-rows">
+          <div><span>Debt repaid</span><strong>0 USDC</strong></div>
+          <div><span>Typical keeper cost</span><strong className="bad">0.56%</strong></div>
+          <p className="muted small">DeFi Saver median for a $1k–$10k rebalance, from 919 real ones on Aave v3.</p>
+        </div>
       ) : (
         <>
           <div className="cost-rows">
@@ -104,10 +103,10 @@ function CostCard({ fills, explorerUrl }: { fills: Fill[]; explorerUrl: string |
             <div><span>Cost with a keeper</span><strong className="bad">{usdc(totals.keeperCost)} ({percent(keeperLeak(moved))})</strong></div>
             <div><span>Saved</span><strong className="good">{usdc(totals.saved)}</strong></div>
           </div>
-          <p className="lead">
-            {fills.length === 1 ? "One transaction" : `${fills.length} transactions`}: the bot's USDC repaid the Aave debt and the discounted WETH went to the bot.
-            No keeper, no fee. <TxLink hash={fills[0].hash} explorerUrl={explorerUrl} />
-          </p>
+          <div className="rows">
+            <div><span>Transactions</span><strong>{fills.length} <small>no keeper, no fee</small></strong></div>
+            <div><span>Latest</span><strong><TxLink hash={fills[0].hash} explorerUrl={explorerUrl} /></strong></div>
+          </div>
         </>
       )}
     </section>
