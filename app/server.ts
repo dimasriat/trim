@@ -9,6 +9,7 @@ const docs = join(import.meta.dir, "..", "docs", ".vitepress", "dist");
 const deployments = process.env.DEPLOYMENTS ?? join(import.meta.dir, "..", "contracts", "deployments", "anvil.json");
 const snapshotFile = process.env.SNAPSHOT_FILE ?? deployments.replace(/\.json$/, ".snapshot");
 const explorerUrl = process.env.EXPLORER_URL ?? null;
+const sourcifyDir = process.env.SOURCIFY_DIR ?? deployments.replace(/\.json$/, "-sourcify");
 const resetEveryMinutes = Number(process.env.RESET_EVERY_MIN ?? 0);
 const credentials = process.env.DEMO_USER && process.env.DEMO_PASS
   ? "Basic " + btoa(`${process.env.DEMO_USER}:${process.env.DEMO_PASS}`)
@@ -18,9 +19,23 @@ const rpcLimiter = new RateLimiter(Number(process.env.RPC_BURST ?? 120), Number(
 const resetLimiter = new RateLimiter(1, 1 / Number(process.env.RESET_MIN_SECONDS ?? 15));
 const corsHeaders = {
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
   "access-control-allow-headers": "content-type",
 };
+
+type SourcifyEntry = { metadata: unknown; sources: Record<string, { content: string }> } | null;
+const sourcifyCache = new Map<string, Promise<SourcifyEntry>>();
+const SOURCIFY_PATH = /^contracts\/full_match\/1\/(0x[0-9a-fA-F]{40})\/(metadata\.json|sources\/(.+))$/;
+
+function upstreamSourcify(address: string): Promise<SourcifyEntry> {
+  const key = address.toLowerCase();
+  if (!sourcifyCache.has(key)) {
+    sourcifyCache.set(key, fetch(`https://sourcify.dev/server/v2/contract/1/${address}?fields=metadata,sources`)
+      .then(async (response) => (response.ok ? ((await response.json()) as SourcifyEntry) : null))
+      .catch(() => null));
+  }
+  return sourcifyCache.get(key)!;
+}
 
 let epoch = 0;
 let nextResetAt = resetEveryMinutes > 0 ? Date.now() + resetEveryMinutes * 60_000 : null;
@@ -77,6 +92,18 @@ Bun.serve({
     if (pathname === "/explorer-rpc") {
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
       if (request.method === "POST") return proxy(request, "read", client, corsHeaders);
+    }
+
+    if (pathname.startsWith("/sourcify/") && request.method === "GET") {
+      const relative = decodeURIComponent(pathname.slice("/sourcify/".length));
+      if (relative.split("/").includes("..")) return new Response("bad path", { status: 400, headers: corsHeaders });
+      const file = Bun.file(join(sourcifyDir, relative));
+      if (await file.exists()) return new Response(file, { headers: corsHeaders });
+      const match = relative.match(SOURCIFY_PATH);
+      const entry = match ? await upstreamSourcify(match[1]) : null;
+      if (entry && match![2] === "metadata.json") return Response.json(entry.metadata, { headers: corsHeaders });
+      if (entry && match![3] && entry.sources[match![3]]) return new Response(entry.sources[match![3]].content, { headers: corsHeaders });
+      return new Response("not found", { status: 404, headers: corsHeaders });
     }
 
     if (credentials && request.headers.get("authorization") !== credentials) return unauthorized();
