@@ -69,7 +69,7 @@ contract DeployDemo is Script {
         vm.serializeAddress(json, "orderMaker", order.maker);
         vm.serializeUint(json, "orderTraits", uint256(MakerTraits.unwrap(order.traits)));
         string memory out = vm.serializeBytes(json, "orderData", order.data);
-        vm.writeJson(out, "./deployments/anvil.json");
+        vm.writeJson(out, vm.envOr("DEPLOYMENTS_PATH", string("./deployments/anvil.json")));
     }
 
     function _debtFor(uint256 collateral, uint256 healthFactor) internal view returns (uint256) {

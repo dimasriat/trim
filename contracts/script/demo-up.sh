@@ -30,5 +30,7 @@ cast rpc anvil_setCode "$ORACLE" "$(forge inspect DemoAaveOracle deployedBytecod
 cast send "$ORACLE" "setPrice(address,uint256)" "$WETH" "$weth_price" --private-key "$DEPLOYER_KEY" --rpc-url "$RPC" >/dev/null
 cast send "$ORACLE" "setPrice(address,uint256)" "$USDC" "$usdc_price" --private-key "$DEPLOYER_KEY" --rpc-url "$RPC" >/dev/null
 
+export DEPLOYMENTS_PATH=${DEPLOYMENTS_PATH:-./deployments/anvil.json}
 forge script script/DeployDemo.s.sol --rpc-url "$RPC" --broadcast --slow >/dev/null
-echo "demo ready on $RPC, WETH at $weth_price, deployments/anvil.json"
+cast rpc evm_snapshot --rpc-url "$RPC" | tr -d '"' >"${DEPLOYMENTS_PATH%.json}.snapshot"
+echo "demo ready on $RPC, WETH at $weth_price, $DEPLOYMENTS_PATH"
